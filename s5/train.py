@@ -8,7 +8,8 @@ from .train_helpers import create_train_state, reduce_lr_on_plateau,\
     linear_warmup, cosine_annealing, constant_lr, train_epoch, validate
 from .dataloading import Datasets
 from .seq_model import BatchClassificationModel, RetrievalModel
-from .ssm import init_S5SSM
+from .ssm import S5SSM
+from .ssm_extend import init_ExtendedS5SSM
 from .ssm_init import make_DPLR_HiPPO
 
 
@@ -93,19 +94,34 @@ def train(args):
     print("V.shape={}".format(V.shape))
     print("Vinv.shape={}".format(Vinv.shape))
 
-    ssm_init_fn = init_S5SSM(H=args.d_model,
-                             P=ssm_size,
-                             Lambda_re_init=Lambda.real,
-                             Lambda_im_init=Lambda.imag,
-                             V=V,
-                             Vinv=Vinv,
-                             C_init=args.C_init,
-                             discretization=args.discretization,
-                             dt_min=args.dt_min,
-                             dt_max=args.dt_max,
-                             conj_sym=args.conj_sym,
-                             clip_eigs=args.clip_eigs,
-                             bidirectional=args.bidirectional)
+    # ssm_kwargs 기본값 설정
+    ssm_kwargs = getattr(args, 'ssm_kwargs', {})
+
+    # 먼저 기본 S5SSM 생성
+    base_ssm = S5SSM(
+        H=args.d_model,
+        P=ssm_size,
+        Lambda_re_init=Lambda.real,
+        Lambda_im_init=Lambda.imag,
+        V=V,
+        Vinv=Vinv,
+        C_init=args.C_init,
+        discretization=args.discretization,
+        dt_min=args.dt_min,
+        dt_max=args.dt_max,
+        conj_sym=args.conj_sym,
+        clip_eigs=args.clip_eigs,
+        bidirectional=args.bidirectional
+    )
+
+    # ExtendedS5SSM 초기화
+    ssm_init_fn = init_ExtendedS5SSM(
+        original_ssm=base_ssm,
+        P=ssm_size,
+        H=args.d_model,
+        R=args.R,
+        ssm_kwargs=ssm_kwargs
+    )
 
     if retrieval:
         # Use retrieval head for AAN task

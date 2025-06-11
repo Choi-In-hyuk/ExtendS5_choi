@@ -19,7 +19,7 @@ def cosine_annealing(step, base_lr, end_step, lr_min=1e-6):
     cosine_decay = 0.5 * (1 + np.cos(np.pi * count / end_step))
     decayed = (base_lr - lr_min) * cosine_decay + lr_min
     return decayed
-
+    
 
 def reduce_lr_on_plateau(input, factor=0.2, patience=20, lr_min=1e-6):
     lr, ssm_lr, count, new_acc, opt_acc = input
