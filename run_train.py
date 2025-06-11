@@ -3,13 +3,12 @@ from s5.utils.util import str2bool
 from s5.train import train
 from s5.dataloading import Datasets
 
-if __name__ == "__main__":
-
+def main():
 	parser = argparse.ArgumentParser()
 
-	parser.add_argument("--USE_WANDB", type=str2bool, default=False,
+	parser.add_argument("--USE_WANDB", type=str2bool, default=True,
 						help="log with wandb?")
-	parser.add_argument("--wandb_project", type=str, default=None,
+	parser.add_argument("--wandb_project", type=str, default="extends5",
 						help="wandb project name")
 	parser.add_argument("--wandb_entity", type=str, default=None,
 						help="wandb entity name, e.g. username")
@@ -18,8 +17,14 @@ if __name__ == "__main__":
 	parser.add_argument("--dataset", type=str, choices=Datasets.keys(),
 						default='mnist-classification',
 						help="dataset name")
+	parser.add_argument("--checkpoint", type=str2bool, default=False,
+						help="checkpoint?")
 
 	# Model Parameters
+	parser.add_argument("--ssm_type", type=str, default="extended", choices=["ssm", "extended"],
+						help="SSM type")
+	parser.add_argument("--R", type=int, default=0,
+						help="Number of low-rank components")
 	parser.add_argument("--n_layers", type=int, default=6,
 						help="Number of layers in the network")
 	parser.add_argument("--d_model", type=int, default=128,
@@ -42,8 +47,8 @@ if __name__ == "__main__":
 							 "last: take last element")
 	parser.add_argument("--activation_fn", default="half_glu1", type=str,
 						choices=["full_glu", "half_glu1", "half_glu2", "gelu"])
-	parser.add_argument("--conj_sym", type=str2bool, default=True,
-						help="whether to enforce conjugate symmetry")
+	parser.add_argument("--conj_sym", type=str2bool, default=False,
+						help="Whether to enforce conjugate symmetry")
 	parser.add_argument("--clip_eigs", type=str2bool, default=False,
 						help="whether to enforce the left-half plane condition")
 	parser.add_argument("--bidirectional", type=str2bool, default=False,
@@ -98,4 +103,15 @@ if __name__ == "__main__":
 	parser.add_argument("--jax_seed", type=int, default=1919,
 						help="seed randomness")
 
-	train(parser.parse_args())
+	args = parser.parse_args()
+
+	if args.ssm_type == "extended":
+		train(args)
+	else:
+		train(args)
+
+
+if __name__ == "__main__":
+	main()
+
+
