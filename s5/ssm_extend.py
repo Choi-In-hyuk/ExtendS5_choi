@@ -37,7 +37,7 @@ class ExtendedS5SSM(nn.Module):
             step_rescale=self.step_rescale
         )
 
-        self.F = self.param("F", normal(stddev=0.1), (self.R, self.P))
+        self.F = self.param("F", normal(stddev=0.01), (self.R, self.P))
         self.E = self.param("E", normal(stddev=0.01), (self.P, self.R))
         self.Delta = self.param("Delta", normal(stddev=1.0), (self.R, self.R))
 
