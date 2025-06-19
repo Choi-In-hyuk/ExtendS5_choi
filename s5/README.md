@@ -10,6 +10,8 @@ Long Range Arena [https://github.com/google-research/long-range-arena](https://g
 
 The reason I used S5 instead of S4 is that it allows direct access to the state sequence x_seq.
 
+Performance table
+--
 ### This table shows the training accuracy of S5 on the LRA dataset.
 ![image](https://github.com/user-attachments/assets/fd281d52-c845-41d5-8457-e3ca0e126808)
 #### Our goal is to achieve an average accuracy of 90%.
