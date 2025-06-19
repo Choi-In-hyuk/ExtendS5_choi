@@ -22,12 +22,12 @@ Performance table
 The B2S6 model is likely the most recent time-varying model to be introduced.
 
 ### setup
-'''bash
+```bash
 torch==1.10.1  
 torchvision==0.11.2  
 jax==0.3.21  
 flax==0.5.0
-'''
+```
 I set up my environment using the pytorch/pytorch:1.10.0-cuda11.3-cudnn8-devel Docker image.  
 
 Let me know if you need any specific version info while aligning dependencies.
