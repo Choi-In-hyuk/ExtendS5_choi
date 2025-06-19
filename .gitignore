@@ -67,6 +67,11 @@ checkpoints/
 *.jsonl.gz
 *.jsonl.gz.part
 *.jsonl.gz.part.1
+*.tar.gz
+*.pth
+*.pt
+*.zip
+checkpoints/
 
 # Translations
 *.mo
