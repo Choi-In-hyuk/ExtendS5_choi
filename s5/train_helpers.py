@@ -84,6 +84,7 @@ def create_train_state(model_cls,
                        rng,
                        padded,
                        retrieval,
+                       selective_copying,
                        in_dim=1,
                        bsz=128,
                        seq_len=784,
@@ -92,7 +93,14 @@ def create_train_state(model_cls,
                        opt_config="standard",
                        ssm_lr=1e-3,
                        lr=1e-3,
-                       dt_global=False
+                       dt_global=False,
+                       ssm_init_fn=None,
+                       d_model=256,
+                       n_layers=4,
+                       activation="gelu",
+                       dropout=0.2,
+                       prenorm=False,
+                       bn_momentum=0.9
                        ):
     """
     Initializes the training state using optax
@@ -110,6 +118,13 @@ def create_train_state(model_cls,
     :param ssm_lr:
     :param lr:
     :param dt_global:
+    :param ssm_init_fn:
+    :param d_model:
+    :param n_layers:
+    :param activation:
+    :param dropout:
+    :param prenorm:
+    :param bn_momentum:
     :return:
     """
 
@@ -125,7 +140,19 @@ def create_train_state(model_cls,
         dummy_input = np.ones((bsz, seq_len, in_dim))
         integration_timesteps = np.ones((bsz, seq_len, ))
 
-    model = model_cls(training=True)
+    if selective_copying:
+        model = model_cls(ssm=ssm_init_fn,
+                         d_model=d_model,
+                         n_layers=n_layers,
+                         vocab_size=in_dim,
+                         activation=activation,
+                         dropout=dropout,
+                         training=True,
+                         prenorm=prenorm,
+                         batchnorm=batchnorm,
+                         bn_momentum=bn_momentum)
+    else:
+        model = model_cls(training=True)
     init_rng, dropout_rng = jax.random.split(rng, num=2)
     variables = model.init({"params": init_rng,
                             "dropout": dropout_rng},
@@ -434,3 +461,9 @@ def eval_step(batch_inputs,
     accs = compute_accuracy(logits, batch_labels)
 
     return losses, accs, logits
+
+
+# 새로운 스케줄러 추가
+def linear_increase(step, base_lr, end_step, lr_min=None):
+    """학습률을 0에서 시작해서 base_lr까지 선형적으로 증가"""
+    return base_lr * (step / end_step)

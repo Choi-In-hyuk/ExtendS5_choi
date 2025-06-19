@@ -7,7 +7,7 @@ import wandb
 from .train_helpers import create_train_state, reduce_lr_on_plateau,\
     linear_warmup, cosine_annealing, constant_lr, train_epoch, validate
 from .dataloading import Datasets
-from .seq_model import BatchClassificationModel, RetrievalModel
+from .seq_model import BatchClassificationModel, RetrievalModel, BatchSelectiveCopyingModel
 from .ssm import S5SSM
 from .ssm_extend import init_ExtendedS5SSM
 from .ssm_init import make_DPLR_HiPPO
@@ -46,7 +46,7 @@ def train(args):
     create_dataset_fn = Datasets[args.dataset]
 
     # Dataset dependent logic
-    if args.dataset in ["imdb-classification", "listops-classification", "aan-classification"]:
+    if args.dataset in ["imdb-classification", "listops-classification", "aan-classification", "selective-copying"]:
         padded = True
         if args.dataset in ["aan-classification"]:
             # Use retreival model for document matching
@@ -54,10 +54,16 @@ def train(args):
             print("Using retrieval model for document matching")
         else:
             retrieval = False
+        if args.dataset in ["selective-copying"]:
+            selective_copying = True
+            print("Using selective copying model")
+        else:
+            selective_copying = False
 
     else:
         padded = False
         retrieval = False
+        selective_copying = False
 
     # For speech dataset
     if args.dataset in ["speech35-classification"]:
@@ -113,15 +119,17 @@ def train(args):
         clip_eigs=args.clip_eigs,
         bidirectional=args.bidirectional
     )
-
-    # ExtendedS5SSM 초기화
-    ssm_init_fn = init_ExtendedS5SSM(
+    if args.ssm:
+        ssm_init_fn = base_ssm
+    else:
+        # ExtendedS5SSM 초기화
+        ssm_init_fn = init_ExtendedS5SSM(
         original_ssm=base_ssm,
         P=ssm_size,
         H=args.d_model,
         R=args.R,
         ssm_kwargs=ssm_kwargs
-    )
+        )
 
     if retrieval:
         # Use retrieval head for AAN task
@@ -139,7 +147,22 @@ def train(args):
             batchnorm=args.batchnorm,
             bn_momentum=args.bn_momentum,
         )
-
+    elif selective_copying:
+        print("Using selective copying model")
+        model_cls = partial(
+            BatchSelectiveCopyingModel,
+            ssm=ssm_init_fn,
+            d_output=n_classes,
+            d_model=args.d_model,
+            n_layers=args.n_layers,
+            padded=padded,
+            activation=args.activation_fn,
+            dropout=args.p_dropout,
+            mode=args.mode,
+            prenorm=args.prenorm,
+            batchnorm=args.batchnorm,
+            bn_momentum=args.bn_momentum,
+        )
     else:
         model_cls = partial(
             BatchClassificationModel,
@@ -161,6 +184,7 @@ def train(args):
                                init_rng,
                                padded,
                                retrieval,
+                               selective_copying,
                                in_dim=in_dim,
                                bsz=args.bsz,
                                seq_len=seq_len,

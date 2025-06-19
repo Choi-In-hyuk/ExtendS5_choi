@@ -270,3 +270,74 @@ class SpeechCommands(ResolutionSequenceDataset):
             path=self.data_dir,
             all_classes=self.all_classes,
         )
+
+class SelectiveCopying(SequenceDataset):
+    _name_ = "selective_copying"
+    d_input = 1
+    n_classes = 16
+    d_output = 16  # n_classes와 동일한 값
+    l_output = 16
+    L = 4096
+    l_max = 4096
+
+    @property
+    def init_defaults(self):
+        return {
+            "val_split": 0.1,
+            "seed": 42,  # For train/val split
+        }
+
+    def setup(self):
+        self.data_dir = self.data_dir or default_data_path / self._name_
+        
+        # 데이터 생성
+        def generate_sequence():
+            # 입력 시퀀스 생성 (4096 길이)
+            input_seq = np.zeros(self.L, dtype=np.int32)
+            # 처음 16개 위치에 랜덤한 숫자 (1-15) 삽입
+            positions = np.random.choice(16, 16, replace=False)
+            values = np.random.randint(1, self.n_classes, size=16)
+            input_seq[positions] = values
+            
+            # 출력 시퀀스 생성 (16 길이)
+            output_seq = np.zeros(16, dtype=np.int32)
+            output_seq[positions] = values
+            
+            return input_seq, output_seq
+
+        # 학습 데이터 생성
+        train_inputs = np.zeros((50000, self.L), dtype=np.int32)
+        train_outputs = np.zeros((50000, 16), dtype=np.int32)
+        for i in range(50000):
+            train_inputs[i], train_outputs[i] = generate_sequence()
+        
+        # 검증 데이터 생성
+        val_inputs = np.zeros((5000, self.L), dtype=np.int32)
+        val_outputs = np.zeros((5000, 16), dtype=np.int32)
+        for i in range(5000):
+            val_inputs[i], val_outputs[i] = generate_sequence()
+        
+        # 테스트 데이터 생성
+        test_inputs = np.zeros((5000, self.L), dtype=np.int32)
+        test_outputs = np.zeros((5000, 16), dtype=np.int32)
+        for i in range(5000):
+            test_inputs[i], test_outputs[i] = generate_sequence()
+        
+        # 데이터셋 생성
+        self.dataset_train = torch.utils.data.TensorDataset(
+            torch.from_numpy(train_inputs),
+            torch.from_numpy(train_outputs)
+        )
+        
+        self.dataset_val = torch.utils.data.TensorDataset(
+            torch.from_numpy(val_inputs),
+            torch.from_numpy(val_outputs)
+        )
+        
+        self.dataset_test = torch.utils.data.TensorDataset(
+            torch.from_numpy(test_inputs),
+            torch.from_numpy(test_outputs)
+        )
+
+    def __str__(self):
+        return self._name_

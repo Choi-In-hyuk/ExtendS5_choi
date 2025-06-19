@@ -54,6 +54,34 @@ def make_data_loader(dset,
 									   drop_last=drop_last, generator=rng)
 
 
+def create_selective_copying_dataset(cache_dir: Union[str, Path] = DEFAULT_CACHE_DIR_ROOT,
+									bsz: int = 32,
+									seed: int = 42) -> ReturnType:
+	"""
+	See abstract template.
+	"""	
+	print("[*] Generating Selective Copying Dataset")
+	from s5.dataloaders.basic import SelectiveCopying
+	name = 'selective_copying'	
+	
+	dataset_obj = SelectiveCopying(name, data_dir=cache_dir)
+	dataset_obj.setup()	
+	
+	trn_loader = make_data_loader(dataset_obj.dataset_train, dataset_obj, seed=seed, batch_size=bsz)
+	val_loader = make_data_loader(dataset_obj.dataset_val, dataset_obj, seed=seed, batch_size=bsz, drop_last=False, shuffle=False)
+	tst_loader = make_data_loader(dataset_obj.dataset_test, dataset_obj, seed=seed, batch_size=bsz, drop_last=False, shuffle=False)	
+	
+	N_CLASSES = dataset_obj.d_output
+	SEQ_LENGTH = dataset_obj.l_max
+	IN_DIM = dataset_obj.d_input
+	TRAIN_SIZE = len(dataset_obj.dataset_train)
+	
+	aux_loaders = {}	
+	
+	return trn_loader, val_loader, tst_loader, aux_loaders, N_CLASSES, SEQ_LENGTH, IN_DIM, TRAIN_SIZE
+	
+
+
 def create_lra_imdb_classification_dataset(cache_dir: Union[str, Path] = DEFAULT_CACHE_DIR_ROOT,
 										   bsz: int = 50,
 										   seed: int = 42) -> ReturnType:
@@ -403,4 +431,7 @@ Datasets = {
 
 	# Speech.
 	"speech35-classification": create_speechcommands35_classification_dataset,
+
+	# Selective Copying.
+	"selective-copying": create_selective_copying_dataset,
 }

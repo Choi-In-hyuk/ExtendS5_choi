@@ -8,7 +8,7 @@ def main():
 
 	parser.add_argument("--USE_WANDB", type=str2bool, default=True,
 						help="log with wandb?")
-	parser.add_argument("--wandb_project", type=str, default="extends5",
+	parser.add_argument("--wandb_project", type=str, default="new_s5",
 						help="wandb project name")
 	parser.add_argument("--wandb_entity", type=str, default=None,
 						help="wandb entity name, e.g. username")
@@ -21,8 +21,8 @@ def main():
 						help="checkpoint?")
 
 	# Model Parameters
-	parser.add_argument("--ssm_type", type=str, default="extended", choices=["ssm", "extended"],
-						help="SSM type")
+	parser.add_argument("--ssm", type=str2bool, default=False,
+						help="SSM type(ssm=True: S5, ssm=False: Extended S5)")
 	parser.add_argument("--R", type=int, default=0,
 						help="Number of low-rank components")
 	parser.add_argument("--n_layers", type=int, default=6,
@@ -105,10 +105,7 @@ def main():
 
 	args = parser.parse_args()
 
-	if args.ssm_type == "extended":
-		train(args)
-	else:
-		train(args)
+	train(args)
 
 
 if __name__ == "__main__":

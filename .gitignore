@@ -50,6 +50,23 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
+cache_dir/
+raw_data/
+raw_datasets/
+wandb/
+*.tar.gz
+*.pth
+*.pt
+*.zip
+checkpoints/
+
+*.tsv
+*.csv
+*.json
+*.jsonl
+*.jsonl.gz
+*.jsonl.gz.part
+*.jsonl.gz.part.1
 
 # Translations
 *.mo
@@ -164,3 +181,25 @@ cython_debug/
 wandb/
 cache_dir/
 raw_datasets/
+On branch main
+Your branch is ahead of 'origin/main' by 4 commits.
+  (use "git push" to publish your local commits)
+
+nothing to commit, working tree clean
+raw_data/
+*.tar.gz
+*.pth
+*.pt
+*.zip
+checkpoints/
+raw_data/
+*.tar.gz
+*.pth
+*.pt
+*.zip
+checkpoints/
+raw_data/
+*.tar.gz
+*.pth
+*.pt
+*.zip

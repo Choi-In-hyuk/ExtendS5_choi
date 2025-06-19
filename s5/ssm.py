@@ -60,7 +60,7 @@ def binary_operator(q_i, q_j):
 def apply_ssm(Lambda_bar, B_bar, C_tilde, input_sequence, conj_sym=False, bidirectional=False):
     """ Compute the LxH output of discretized SSM given an LxH input.
         Args:
-            Lambda_bar (complex64): discretized diagonal state matrix    (P,)
+            Lambda_bar (complex64): discretized diagonal state matrix    (P,) or (L, P)
             B_bar      (complex64): discretized input matrix             (P, H)
             C_tilde    (complex64): output matrix                        (H, P)
             input_sequence (float32): input sequence of features         (L, H)
@@ -70,8 +70,12 @@ def apply_ssm(Lambda_bar, B_bar, C_tilde, input_sequence, conj_sym=False, bidire
         Returns:
             ys (float32): the SSM outputs (S5 layer preactivations)      (L, H)
     """
-    Lambda_elements = Lambda_bar * np.ones((input_sequence.shape[0],
-                                            Lambda_bar.shape[0]))
+    # Lambda_bar가 (P,)인 경우 (L, P)로 확장
+    if len(Lambda_bar.shape) == 1:
+        Lambda_elements = Lambda_bar * np.ones((input_sequence.shape[0], Lambda_bar.shape[0]))
+    else:
+        Lambda_elements = Lambda_bar  # 이미 (L, P)인 경우
+
     Bu_elements = jax.vmap(lambda u: B_bar @ u)(input_sequence)
 
     _, xs = jax.lax.associative_scan(binary_operator, (Lambda_elements, Bu_elements))
@@ -83,9 +87,9 @@ def apply_ssm(Lambda_bar, B_bar, C_tilde, input_sequence, conj_sym=False, bidire
         xs = np.concatenate((xs, xs2), axis=-1)
 
     if conj_sym:
-        return jax.vmap(lambda x: 2*(C_tilde @ x).real)(xs)
+        return xs, jax.vmap(lambda x: 2*(C_tilde @ x).real)(xs)
     else:
-        return jax.vmap(lambda x: (C_tilde @ x).real)(xs)
+        return xs, jax.vmap(lambda x: (C_tilde @ x).real)(xs)
 
 
 class S5SSM(nn.Module):
@@ -124,7 +128,6 @@ class S5SSM(nn.Module):
                                    constrain real part of eigenvalues to be negative. 
                                    True recommended for autoregressive task/unbounded sequence lengths
                                    Discussed in https://arxiv.org/pdf/2206.11893.pdf.
-            bidirectional (bool):  Whether model is bidirectional, if True, uses two C matrices
             discretization: (string) Specifies discretization method 
                              options: [zoh: zero-order hold method,
                                        bilinear: bilinear transform]
@@ -132,6 +135,7 @@ class S5SSM(nn.Module):
                                     initializing log_step
             dt_max:      (float32): maximum value to draw timescale values from when 
                                     initializing log_step
+            bidirectional (bool):  Whether model is bidirectional, if True, uses two C matrices
             step_rescale:  (float32): allows for uniformly changing the timescale parameter, e.g. after training 
                                     on a different resolution for the speech commands benchmark
     """

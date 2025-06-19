@@ -312,3 +312,137 @@ class RetrievalModel(nn.Module):
         features = np.concatenate([outs0, outs1, outs0-outs1, outs0*outs1], axis=-1)  # bszx4*d_model
         out = self.decoder(features)
         return nn.log_softmax(out, axis=-1)
+
+
+'''
+selective copying model(new)
+'''
+
+class BatchRetrievalDecoder(nn.Module):
+    """
+    Retrieval decoder with sequence-to-sequence output.
+    """
+    ssm: nn.Module
+    d_model: int
+    d_output: int
+    output_length: int = 16
+
+    activation: str = "gelu"
+    dropout: float = 0.2
+    training: bool = True
+    prenorm: bool = False
+    batchnorm: bool = False
+    bn_momentum: float = 0.9
+    step_rescale: float = 1.0
+
+    def setup(self):
+        """ 
+        Initializes the S5 stacked encoder and the retrieval decoder. Note that here we
+        vmap over the stacked encoder model to work well with the retrieval decoder that
+        operates directly on the batch.
+        """
+        BatchEncoderModel = nn.vmap(    
+            StackedEncoderModel,
+            in_axes=(0, 0),
+            out_axes=0,
+            variable_axes={"params": None, "dropout": None, 'batch_stats': None, "cache": 0, "prime": None},
+            split_rngs={"params": False, "dropout": True}, axis_name='batch'
+        )
+
+        self.encoder = BatchEncoderModel(
+            ssm=self.ssm,
+            d_model=self.d_model,
+            n_layers=self.n_layers,
+            activation=self.activation,
+            dropout=self.dropout,
+            training=self.training,
+            prenorm=self.prenorm,
+            batchnorm=self.batchnorm,
+            bn_momentum=self.bn_momentum,
+            step_rescale=self.step_rescale,
+        )
+
+        self.decoder = nn.Dense(self.d_output)
+
+    def __call__(self, x, integration_timesteps):
+        """
+        Args:
+            x: (L, d_input)
+            integration_timesteps: (L,)
+        Returns:
+            logits: (output_length, vocab_size)
+        """
+        x = self.encoder(x, integration_timesteps)  # (L, D)
+        logits = self.decoder(x)  # (L, vocab_size)
+        return logits
+
+
+class SelectiveCopyingModel(nn.Module):
+    """
+    Selective copying model with sequence-to-sequence output.
+    """
+    ssm: nn.Module
+    d_model: int
+    d_output: int
+    n_layers: int
+    vocab_size: int
+    output_length: int = 16
+
+    activation: str = "gelu"
+    dropout: float = 0.2
+    training: bool = True
+    prenorm: bool = False
+    batchnorm: bool = False
+    bn_momentum: float = 0.9
+    step_rescale: float = 1.0
+
+    def setup(self):
+        self.encoder = StackedEncoderModel(
+            ssm=self.ssm,
+            d_model=self.d_model,
+            n_layers=self.n_layers,
+            activation=self.activation,
+            dropout=self.dropout,
+            training=self.training,
+            prenorm=self.prenorm,
+            batchnorm=self.batchnorm,
+            bn_momentum=self.bn_momentum,
+            step_rescale=self.step_rescale,
+        )
+
+        self.query = self.param("decoder_query", nn.initializers.normal(stddev=0.02),
+                                (self.output_length, self.d_model))  # (16, D)
+
+        self.mlp = nn.Sequential([
+            nn.Dense(self.d_model),
+            nn.gelu,
+            nn.Dense(self.vocab_size)
+        ])
+
+    def __call__(self, x, integration_timesteps):
+        """
+        Args:
+            x: (L, d_input)
+            integration_timesteps: (L,)
+        Returns:
+            logits: (output_length, vocab_size)
+        """
+        x = self.encoder(x, integration_timesteps)  # (L, D)
+        attn_scores = np.einsum("qd,ld->ql", self.query, x)  # (16, L)
+        attn_weights = nn.softmax(attn_scores, axis=-1)       # (16, L)
+        context = np.einsum("ql,ld->qd", attn_weights, x)     # (16, D)
+        logits = self.mlp(context)                             # (16, vocab_size)
+        return logits
+
+
+# Here we call vmap to parallelize across a batch of input sequences
+BatchSelectiveCopyingModel = nn.vmap(
+    SelectiveCopyingModel,
+    in_axes=(0, 0),  # (batch_input, batch_timestep)
+    out_axes=0,
+    variable_axes={"params": None, "dropout": None, 'batch_stats': None, "cache": 0, "prime": None},
+    split_rngs={"params": False, "dropout": True}, axis_name='batch'
+)
+
+
+
