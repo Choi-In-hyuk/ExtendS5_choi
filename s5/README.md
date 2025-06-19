@@ -14,7 +14,7 @@ Performance table
 --
 ### This table shows the training accuracy of S5 on the LRA dataset.
 ![image](https://github.com/user-attachments/assets/fd281d52-c845-41d5-8457-e3ca0e126808)
-#### Our goal is to achieve an average accuracy of 90%.
+#### Our goal is to achieve an average accuracy of 90% in LRA dataset.
 
 ### This table shows the training accuracy of MAMBA on the LRA dataset.
 ![image](https://github.com/user-attachments/assets/a6239082-0ecc-497d-a055-97af9d6d8504)
