@@ -8,7 +8,7 @@ dataset
 --
 Long Range Arena [https://github.com/google-research/long-range-arena](https://github.com/google-research/long-range-arena)
 
-The reason I used S5 instead of S4 is that it allows direct access to the state sequence x_seq.
+The reason I used S5 for base instead of S4 is that it allows direct access to the state sequence x_seq.
 
 Performance table
 --
