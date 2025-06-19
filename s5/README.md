@@ -1,9 +1,11 @@
---
+
 Architecture
+--
 ![image](https://github.com/user-attachments/assets/022e6f43-c3f1-4044-b967-a928101c2953)
 
---
+
 dataset
+--
 Long Range Arena [https://github.com/google-research/long-range-arena](https://github.com/google-research/long-range-arena)
 
 The reason I used S5 instead of S4 is that it allows direct access to the state sequence x_seq.
