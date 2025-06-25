@@ -36,55 +36,50 @@ class ExtendedS5SSM(nn.Module):
             bidirectional=self.original_ssm.bidirectional,
             step_rescale=self.step_rescale
         )
+        self.F = self.param("F", normal(stddev=0.01), (self.R, self.H))
+        self.H_proj = self.param("H_proj", normal(stddev=0.01), (self.R, self.H))
 
-        self.F = self.param("F", normal(stddev=0.001), (self.R, self.P))
-        self.E = self.param("E", normal(stddev=0.001), (self.P, self.R))
-        self.Delta = self.param("Delta", normal(stddev=0.01), (self.R, self.R))
+        self.Delta_p = self.param("Delta_p", lambda rng, shape: np.eye(self.R), (self.R, self.R))
+        self.Delta_r = self.param("Delta_r", lambda rng, shape: np.eye(self.R), (self.R, self.R))
+
+        self.E = self.param("E", normal(stddev=0.01), (self.P, self.R))
+        self.G = self.param("G", normal(stddev=0.01), (self.H, self.R))
 
     def __call__(self, input_sequence):
-        Lambda_bar = self.ssm.Lambda_bar
-        B_bar = self.ssm.B_bar
-        C_tilde = self.ssm.C_tilde
-        D = self.ssm.D
+        """
+        input_sequence: (L, H) — 원래 입력 시퀀스 u_k
+        output_sequence: (L, H) — 출력 시퀀스 y_k
+        """
 
-        L = input_sequence.shape[0]
+        # Step 1: Compute p_k and r_k from u_k
+        # p_k = Δ F u_k,   r_k = Δ H u_k
+        p_seq = jax.vmap(lambda u: self.Delta_p @ (self.F @ u))(input_sequence)  # (L, R)
+        r_seq = jax.vmap(lambda u: self.Delta_r @ (self.H_proj @ u))(input_sequence)  # (L, R)
 
-        # 1st pass: compute x_seq with standard SSM (no p_k) 
-        x_seq, _ = apply_ssm(Lambda_bar, B_bar, np.eye(self.P), input_sequence, conj_sym=False, bidirectional=False)
+        # Step 2: Form [u_k; p_k]
+        up_seq = np.concatenate([input_sequence, p_seq], axis=-1)  # (L, H+R)
 
-        # Compute q_k = F x_{k-1}, use x_seq[:-1]
-        x_prev = x_seq[:-1]  # shape (L-1, P)
-        q_seq = jax.vmap(lambda x: self.F @ x)(x_prev)  # (L-1, R)
-        p_seq = q_seq @ self.Delta    # (L-1, R)
+        # Step 3: Input projection B_ext = [B E]
+        B_ext = np.concatenate([self.ssm.B_bar, self.E], axis=1)  # (P, H+R)
 
-        
-        # jax.debug.print("x_seq.max: {}", x_seq.max())
-        # jax.debug.print("p_seq.max: {}", p_seq.max())
-        
-        # Truncate u to match (L-1, H), and concat with p to get [u; p]
-        u_trunc = input_sequence[1:]                    # (L-1, H)
-        up_seq = np.concatenate([u_trunc, p_seq], axis=-1)  # (L-1, H+R)
+        # Step 4: Compute x_seq with apply_ssm (standard)
+        x_seq, _ = apply_ssm(
+            self.ssm.Lambda_bar,
+            B_ext,
+            np.eye(self.ssm.Lambda_bar.shape[0]),  # Identity projection: return x_seq
+            up_seq,
+            conj_sym=self.conj_sym,
+            bidirectional=self.ssm.bidirectional
+        )
 
-        # Prepare extended B matrix: [B E] ∈ (P, H+R)
-        B_ext = np.concatenate([B_bar, self.E], axis=1)  # (P, H+R)
-        
-        
-        # jax.debug.print("B_bar.max: {}", B_bar.max())
-        # jax.debug.print("E.max: {}", self.E.max())
-        
-        # 2nd pass: compute new x'_seq with augmented input
-        x_aug, y_aug = apply_ssm(Lambda_bar, B_ext, C_tilde, up_seq, conj_sym=self.conj_sym, bidirectional=self.ssm.bidirectional)
+        # Step 5: Compute output y_k = C x_k + G r_k + D u_k
+        y_seq = jax.vmap(lambda x, r, u: (self.ssm.C_tilde @ x).real + (self.G @ r) + (self.ssm.D @ u))(
+            x_seq, r_seq, input_sequence
+        )  # (L, H)
 
-        # pad to L length
-        zero = np.zeros((1, y_aug.shape[1]), dtype=y_aug.dtype)
-        y_aug_padded = np.concatenate([zero, y_aug], axis=0)  # (L, H)
+        return y_seq
 
-        # Du도 같은 방식으로 padding
-        Du_trunc = jax.vmap(lambda u: D * u)(u_trunc)  # (L-1, H)
-        zero_D = np.zeros((1, Du_trunc.shape[1]), dtype=Du_trunc.dtype)
-        Du = np.concatenate([zero_D, Du_trunc], axis=0)  # (L, H)
 
-        return y_aug_padded + Du  # (L, H)
 
 
 def init_ExtendedS5SSM(original_ssm, P, H, R, ssm_kwargs=None):
