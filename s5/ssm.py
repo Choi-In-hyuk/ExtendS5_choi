@@ -57,7 +57,7 @@ def binary_operator(q_i, q_j):
     return A_j * A_i, A_j * b_i + b_j
 
 
-def apply_ssm(Lambda_bar, B_bar, C_tilde, input_sequence, conj_sym=False, bidirectional=False):
+def apply_ssm(Lambda_bar, B_bar, C_tilde, input_sequence, conj_sym, bidirectional):
     """ Compute the LxH output of discretized SSM given an LxH input.
         Args:
             Lambda_bar (complex64): discretized diagonal state matrix    (P,) or (L, P)
@@ -85,11 +85,15 @@ def apply_ssm(Lambda_bar, B_bar, C_tilde, input_sequence, conj_sym=False, bidire
                                           (Lambda_elements, Bu_elements),
                                           reverse=True)
         xs = np.concatenate((xs, xs2), axis=-1)
+    
+    if C_tilde is None:
+        return xs, None
 
     if conj_sym:
         return xs, jax.vmap(lambda x: 2*(C_tilde @ x).real)(xs)
     else:
         return xs, jax.vmap(lambda x: (C_tilde @ x).real)(xs)
+        
 
 
 class S5SSM(nn.Module):
@@ -104,9 +108,9 @@ class S5SSM(nn.Module):
     discretization: str
     dt_min: float
     dt_max: float
-    conj_sym: bool = False
-    clip_eigs: bool = False
-    bidirectional: bool = False
+    conj_sym: bool = True
+    clip_eigs: bool = True
+    bidirectional: bool = True
     step_rescale: float = 1.0
 
     """ The S5 SSM

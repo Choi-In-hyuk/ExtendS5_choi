@@ -47,11 +47,11 @@ def main():
 							 "last: take last element")
 	parser.add_argument("--activation_fn", default="half_glu1", type=str,
 						choices=["full_glu", "half_glu1", "half_glu2", "gelu"])
-	parser.add_argument("--conj_sym", type=str2bool, default=False,
+	parser.add_argument("--conj_sym", type=str2bool, default=True,
 						help="Whether to enforce conjugate symmetry")
-	parser.add_argument("--clip_eigs", type=str2bool, default=False,
+	parser.add_argument("--clip_eigs", type=str2bool, default=True,
 						help="whether to enforce the left-half plane condition")
-	parser.add_argument("--bidirectional", type=str2bool, default=False,
+	parser.add_argument("--bidirectional", type=str2bool, default=True,
 						help="whether to use bidirectional model")
 	parser.add_argument("--dt_min", type=float, default=0.001,
 						help="min value to sample initial timescale params from")

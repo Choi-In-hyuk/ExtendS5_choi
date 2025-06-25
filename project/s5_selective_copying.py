@@ -119,9 +119,9 @@ def main():
         'discretization': "zoh",
         'dt_min': 0.001,
         'dt_max': 0.1,
-        'conj_sym': False,
+        'conj_sym': True,
         'clip_eigs': True,
-        'bidirectional': False
+        'bidirectional': True
     }
     
     # 모델 초기화

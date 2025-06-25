@@ -14,7 +14,6 @@ class ExtendedS5SSM(nn.Module):
     R: int
     ssm_kwargs: dict = field(default_factory=dict)
     step_rescale: float = 1.0
-    conj_sym: bool = False
 
     def setup(self):
         kwargs = dict(self.ssm_kwargs)
@@ -31,7 +30,7 @@ class ExtendedS5SSM(nn.Module):
             discretization=self.original_ssm.discretization,
             dt_min=self.original_ssm.dt_min,
             dt_max=self.original_ssm.dt_max,
-            conj_sym=self.conj_sym,
+            conj_sym=self.original_ssm.conj_sym,
             clip_eigs=self.original_ssm.clip_eigs,
             bidirectional=self.original_ssm.bidirectional,
             step_rescale=self.step_rescale
@@ -66,20 +65,31 @@ class ExtendedS5SSM(nn.Module):
         x_seq, _ = apply_ssm(
             self.ssm.Lambda_bar,
             B_ext,
-            np.eye(self.ssm.Lambda_bar.shape[0]),  # Identity projection: return x_seq
+            # np.eye(2*self.ssm.Lambda_bar.shape[0] if self.ssm.conj_sym else self.ssm.Lambda_bar.shape[0]),  # Identity projection: return x_seq
+            None,
             up_seq,
-            conj_sym=self.conj_sym,
-            bidirectional=self.ssm.bidirectional
+            conj_sym=self.original_ssm.conj_sym,
+            bidirectional=self.original_ssm.bidirectional
         )
 
-        # Step 5: Compute output y_k = C x_k + G r_k + D u_k
-        y_seq = jax.vmap(lambda x, r, u: (self.ssm.C_tilde @ x).real + (self.G @ r) + (self.ssm.D @ u))(
-            x_seq, r_seq, input_sequence
-        )  # (L, H)
+        if self.original_ssm.conj_sym:
+            y_seq = jax.vmap(lambda x, r, u: 2*(self.ssm.C_tilde @ x).real + (self.G @ r) + (self.ssm.D @ u))(
+                x_seq, r_seq, input_sequence
+            )  # (L, H)
+        else:
+            # Step 5: Compute output y_k = C x_k + G r_k + D u_k
+            y_seq = jax.vmap(lambda x, r, u: (self.ssm.C_tilde @ x).real + (self.G @ r) + (self.ssm.D @ u))(
+                x_seq, r_seq, input_sequence
+            )  # (L, H)
 
         return y_seq
 
-
+'''
+    if conj_sym:
+        return xs, jax.vmap(lambda x: 2*(C_tilde @ x).real)(xs)
+    else:
+        return xs, jax.vmap(lambda x: (C_tilde @ x).real)(xs)
+        '''
 
 
 def init_ExtendedS5SSM(original_ssm, P, H, R, ssm_kwargs=None):
