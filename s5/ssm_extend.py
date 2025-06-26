@@ -6,19 +6,18 @@ from .ssm import S5SSM, apply_ssm
 from functools import partial
 from dataclasses import field
 
-
 class ExtendedS5SSM(nn.Module):
-    original_ssm: S5SSM
-    P: int
-    H: int
-    R: int
+    original_ssm: nn.Module
+    H: int  # input dim
+    P: int  # state dim
+    R: int  # projection dim
     ssm_kwargs: dict = field(default_factory=dict)
     step_rescale: float = 1.0
 
     def setup(self):
         kwargs = dict(self.ssm_kwargs)
         kwargs['step_rescale'] = self.step_rescale
-
+        # 기존 S5SSM 불러오기
         self.ssm = S5SSM(
             H=self.original_ssm.H,
             P=self.original_ssm.P,
@@ -35,54 +34,55 @@ class ExtendedS5SSM(nn.Module):
             bidirectional=self.original_ssm.bidirectional,
             step_rescale=self.step_rescale
         )
-        self.F = self.param("F", normal(stddev=0.01), (self.R, self.H))
-        self.H_proj = self.param("H_proj", normal(stddev=0.01), (self.R, self.H))
 
-        self.Delta_p = self.param("Delta_p", lambda rng, shape: np.eye(self.R), (self.R, self.R))
-        self.Delta_r = self.param("Delta_r", lambda rng, shape: np.eye(self.R), (self.R, self.R))
+        # p_k 생성용 MLP: input H → hidden → output R
+        self.mlp_dense1 = nn.Dense(features=self.R * 2)
+        self.mlp_dense2 = nn.Dense(features=self.R)
 
-        self.E = self.param("E", normal(stddev=0.01), (self.P, self.R))
-        self.G = self.param("G", normal(stddev=0.01), (self.H, self.R))
+        # B 확장용 학습 파라미터 E: shape (P, R)
+        self.E = self.param("E", nn.initializers.normal(0.01), (self.P, self.R))
+
+        # output projection
+        self.G = self.param("G", nn.initializers.normal(0.01), (self.H, self.R))  # for r_k
+        self.D = self.param("D", nn.initializers.zeros, (self.H, self.H))  # optional
 
     def __call__(self, input_sequence):
         """
-        input_sequence: (L, H) — 원래 입력 시퀀스 u_k
-        output_sequence: (L, H) — 출력 시퀀스 y_k
+        input_sequence: (L, H) — 시퀀스 길이 L, 입력 차원 H
         """
 
-        # Step 1: Compute p_k and r_k from u_k
-        # p_k = Δ F u_k,   r_k = Δ H u_k
-        p_seq = jax.vmap(lambda u: self.Delta_p @ (self.F @ u))(input_sequence)  # (L, R)
-        r_seq = jax.vmap(lambda u: self.Delta_r @ (self.H_proj @ u))(input_sequence)  # (L, R)
+        # Step 1: Precompute p_k = MLP(u_k) outside recurrence
+        def mlp_fn(u):
+            h = nn.gelu(self.mlp_dense1(u))   # (2R,)
+            return self.mlp_dense2(h)         # (R,)
+        p_seq = jax.vmap(mlp_fn)(input_sequence)  # (L, R)
 
-        # Step 2: Form [u_k; p_k]
+        # Step 2: Concatenate [u_k; p_k]
         up_seq = np.concatenate([input_sequence, p_seq], axis=-1)  # (L, H+R)
 
-        # Step 3: Input projection B_ext = [B E]
+        # Step 3: Construct extended B matrix
         B_ext = np.concatenate([self.ssm.B_bar, self.E], axis=1)  # (P, H+R)
 
-        # Step 4: Compute x_seq with apply_ssm (standard)
+        # Step 4: SSM 계산
         x_seq, _ = apply_ssm(
             self.ssm.Lambda_bar,
             B_ext,
-            # np.eye(2*self.ssm.Lambda_bar.shape[0] if self.ssm.conj_sym else self.ssm.Lambda_bar.shape[0]),  # Identity projection: return x_seq
-            None,
+            None,  # no projection matrix → return state
             up_seq,
-            conj_sym=self.original_ssm.conj_sym,
-            bidirectional=self.original_ssm.bidirectional
+            conj_sym=self.ssm.conj_sym,
+            bidirectional=self.ssm.bidirectional
         )
 
-        if self.original_ssm.conj_sym:
-            y_seq = jax.vmap(lambda x, r, u: 2*(self.ssm.C_tilde @ x).real + (self.G @ r) + (self.ssm.D @ u))(
-                x_seq, r_seq, input_sequence
-            )  # (L, H)
+        # Step 5: Output = C x + G p + D u
+        if self.ssm.conj_sym:
+            y_seq = jax.vmap(lambda x, p, u: 2 * (self.ssm.C_tilde @ x).real + (self.G @ p) + (self.D @ u))(
+                x_seq, p_seq, input_sequence)
         else:
-            # Step 5: Compute output y_k = C x_k + G r_k + D u_k
-            y_seq = jax.vmap(lambda x, r, u: (self.ssm.C_tilde @ x).real + (self.G @ r) + (self.ssm.D @ u))(
-                x_seq, r_seq, input_sequence
-            )  # (L, H)
+            y_seq = jax.vmap(lambda x, p, u: (self.ssm.C_tilde @ x).real + (self.G @ p) + (self.D @ u))(
+                x_seq, p_seq, input_sequence)
 
         return y_seq
+
 
 '''
     if conj_sym:
