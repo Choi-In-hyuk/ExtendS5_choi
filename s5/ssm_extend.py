@@ -36,8 +36,9 @@ class ExtendedS5SSM(nn.Module):
         )
 
         # p_k 생성용 MLP: input H → hidden → output R
-        self.mlp_dense1 = nn.Dense(features=self.R * 2)
-        self.mlp_dense2 = nn.Dense(features=self.R)
+        self.mlp_dense1 = nn.Dense(features=self.R * 2, kernel_init=nn.initializers.normal(0.01))
+        self.layer_norm = nn.LayerNorm()
+        self.mlp_dense2 = nn.Dense(features=self.R, kernel_init=nn.initializers.normal(0.01))
 
         # B 확장용 학습 파라미터 E: shape (P, R)
         self.E = self.param("E", nn.initializers.normal(0.01), (self.P, self.R))
@@ -50,11 +51,12 @@ class ExtendedS5SSM(nn.Module):
         """
         input_sequence: (L, H) — 시퀀스 길이 L, 입력 차원 H
         """
-
         # Step 1: Precompute p_k = MLP(u_k) outside recurrence
         def mlp_fn(u):
-            h = nn.gelu(self.mlp_dense1(u))   # (2R,)
-            return self.mlp_dense2(h)         # (R,)
+            h = self.layer_norm(nn.gelu(self.mlp_dense1(u)))
+            p = self.mlp_dense2(h)            # (R,)
+            # return np.tanh(p) * 0.1           # scale down to prevent explosion
+            return p
         p_seq = jax.vmap(mlp_fn)(input_sequence)  # (L, R)
 
         # Step 2: Concatenate [u_k; p_k]
