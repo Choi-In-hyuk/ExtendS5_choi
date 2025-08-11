@@ -1,32 +1,37 @@
 
-### 1. 환경 설정
+## 1. 환경 설정
 
+#### 저장소 클론
 ```bash
-# 저장소 클론
 git clone https://github.com/namaewa-im/ExtendS5.git
 cd ExtendS5
-
-# yaml 파일로 가상환경 생성
-conda env create -f s5_environment.yaml
-conda activate s5
-
-# 또는 수동으로 환경 생성
-conda create -n s5 python=3.9
-conda activate s5
-
 ```
 
-### 2. 데이터 다운로드
-
+#### yaml 파일로 가상환경 생성
 ```bash
-# LRA 데이터셋 다운로드
-./bin/download_lra.sh
+conda env create -f s5_environment.yaml
+conda activate s5
+```
 
-# 또는 모든 데이터셋 다운로드
+#### 또는 수동으로 환경 생성
+```bash
+conda create -n s5 python=3.9
+conda activate s5
+```
+
+## 2. 데이터 다운로드
+
+#### LRA 데이터셋 다운로드
+```bash
+./bin/download_lra.sh
+```
+
+#### 모든 데이터셋 다운로드
+```bash
 ./bin/download_all.sh
 ```
 
-### 3. 기본 실행
+## 3. 기본 실행
 
 ```bash
 # cifar10 분류 (보조 상태 비활성화)
@@ -41,10 +46,13 @@ python -m s5.train_ex --dataset cifar-classification --enable_auxiliary --aux_mo
 # 사인파 스케일링
 python -m s5.train_ex --dataset cifar-classification --enable_auxiliary --aux_mode explicit --delta_type sinusoidal --epochs 20 --bsz 32
 ```
---dataset [mnist-classification, cifar-classification, imdb-classification, litsops-classification, pathfinder-classification]
+
+## 4. argparse
+--dataset [mnist-classification, cifar-classification, imdb-classification, litsops-classification, pathfinder-classification]  
 --aux_mode [absorbed, explicit]  
 --delta_type [linear, exponential, sinusoidal, polynomial, constant]  
 
 --
+## 추가 자료
 <img width="600" height="746" alt="image" src="https://github.com/user-attachments/assets/447cd98b-94d1-42f1-a33c-98cf2cd0b680" />
 <img width="641" height="746" alt="image" src="https://github.com/user-attachments/assets/e1d75187-b65f-44cb-97e7-27d581aa1da9" />
