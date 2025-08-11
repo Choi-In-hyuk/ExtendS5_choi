@@ -265,7 +265,7 @@ class S5SSMWithAuxiliaryImproved(nn.Module):
         
         # 시간 스케일 초기화
         self.log_step = self.param("log_step", 
-                                  lambda rng, shape: jnp.log(jnp.random.uniform(rng, shape, 
+                                  lambda rng, shape: jnp.log(jax.random.uniform(rng, shape, 
                                                                                minval=self.dt_min, 
                                                                                maxval=self.dt_max)), 
                                   (self.P,))
@@ -314,6 +314,6 @@ class S5SSMWithAuxiliaryImproved(nn.Module):
         return outputs + Du
 
 
-def init_S5SSMWithAuxiliaryImproved(**kwargs):
+def init_S5SSMWithAuxiliaryState(**kwargs):
     """초기화 함수"""
     return partial(S5SSMWithAuxiliaryImproved, **kwargs)

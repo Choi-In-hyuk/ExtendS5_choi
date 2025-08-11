@@ -20,7 +20,7 @@ from flax.training import train_state
 import wandb
 
 # S5 모듈 import
-from .train_helpers import create_train_state, train_epoch, validate
+from .train_helpers import create_train_state, train_epoch, validate, cosine_annealing
 from .dataloading import Datasets
 from .seq_model import BatchClassificationModel
 from .ssm_extend import init_S5SSMWithAuxiliaryState
@@ -29,7 +29,13 @@ from .ssm_init import make_DPLR_HiPPO
 
 def create_parser():
     """명령행 인자 파서 생성"""
-    parser = argparse.ArgumentParser(description='S5SSMWithAuxiliaryState ListOps 학습')
+    parser = argparse.ArgumentParser(description='S5SSMWithAuxiliaryState 학습')
+    
+    # 데이터셋 파라미터
+    parser.add_argument('--dataset', type=str, default='listops-classification',
+                       choices=['listops-classification', 'mnist-classification', 'pmnist-classification', 
+                               'cifar-classification', 'imdb-classification', 'aan-classification'],
+                       help='사용할 데이터셋')
     
     # 기본 모델 파라미터
     parser.add_argument('--d_model', type=int, default=128, help='모델 차원')
@@ -81,8 +87,9 @@ def main():
     args = parser.parse_args()
     
     print("=" * 60)
-    print("S5SSMWithAuxiliaryState ListOps 학습 시작")
+    print(f"S5SSMWithAuxiliaryState {args.dataset} 학습 시작")
     print("=" * 60)
+    print(f"데이터셋: {args.dataset}")
     print(f"보조 상태 활성화: {args.enable_auxiliary_state}")
     print(f"보조 상태 강도: {args.auxiliary_strength}")
     print(f"시간 스케일링 타입: {args.time_scale_type}")
@@ -94,7 +101,7 @@ def main():
             project=args.wandb_project,
             entity=args.wandb_entity,
             config=vars(args),
-            name=f"auxiliary_{args.time_scale_type}_{args.auxiliary_strength}"
+            name=f"{args.dataset}_auxiliary_{args.time_scale_type}_{args.auxiliary_strength}"
         )
     else:
         wandb.init(mode='offline')
@@ -105,15 +112,26 @@ def main():
     
     # 데이터셋 로드
     print("[*] 데이터셋 로딩 중...")
-    create_dataset_fn = Datasets["listops-classification"]
+    create_dataset_fn = Datasets[args.dataset]
     trainloader, valloader, testloader, aux_dataloaders, n_classes, seq_len, in_dim, train_size = \
         create_dataset_fn(args.dir_name, seed=args.jax_seed, bsz=args.bsz)
     
     print(f"데이터셋 정보:")
+    print(f"  - 데이터셋: {args.dataset}")
     print(f"  - 시퀀스 길이: {seq_len}")
     print(f"  - 입력 차원: {in_dim}")
     print(f"  - 클래스 수: {n_classes}")
     print(f"  - 훈련 샘플 수: {train_size}")
+    
+    # 데이터셋에 따른 설정
+    if args.dataset in ["imdb-classification", "listops-classification", "aan-classification"]:
+        padded = True
+        retrieval = False
+        selective_copying = False
+    else:
+        padded = False
+        retrieval = False
+        selective_copying = False
     
     # SSM 초기화
     print("[*] SSM 초기화 중...")
@@ -156,9 +174,8 @@ def main():
         conj_sym=args.conj_sym,
         clip_eigs=args.clip_eigs,
         bidirectional=args.bidirectional,
-        enable_auxiliary_state=args.enable_auxiliary_state,
-        auxiliary_strength=args.auxiliary_strength,
-        time_scale_type=args.time_scale_type
+        enable_auxiliary=args.enable_auxiliary_state,
+        delta_type=args.time_scale_type
     )
     
     # 모델 클래스 생성
@@ -168,7 +185,7 @@ def main():
         d_output=n_classes,
         d_model=args.d_model,
         n_layers=args.n_layers,
-        padded=True,  # ListOps는 패딩 사용
+        padded=padded,  # 데이터셋에 따라 설정
         activation='gelu',
         dropout=args.p_dropout,
         mode='pool',
@@ -178,87 +195,85 @@ def main():
     )
     
     # 최적화 설정
-    opt_config = {
-        'optimizer': 'adamw',
-        'lr': args.lr,
-        'weight_decay': args.weight_decay,
-        'lr_schedule': 'cosine',
-        'warmup_steps': 1000,
-        'max_steps': 100000,
-    }
-    
+    opt_config = "standard"
+    batchnorm = False
+
     # 훈련 상태 생성
     print("[*] 훈련 상태 초기화 중...")
     state = create_train_state(
         model_cls,
         init_rng,
-        padded=True,
-        retrieval=False,
-        selective_copying=False,
+        padded=padded,  # 데이터셋에 따라 설정
+        retrieval=retrieval,
+        selective_copying=selective_copying,
         in_dim=in_dim,
         bsz=args.bsz,
         seq_len=seq_len,
         weight_decay=args.weight_decay,
-        batchnorm=False,
+        batchnorm=batchnorm,
         opt_config=opt_config,
         ssm_lr=args.lr,
         lr=args.lr,
         dt_global=False
     )
-    
+
+    # 러닝레이트 스케줄 파라미터 설정
+    total_steps = args.epochs * len(trainloader)
+    lr_params = (cosine_annealing, args.lr, args.lr, 0, total_steps, opt_config, 1e-6)
+
     # 훈련 루프
     print("[*] 훈련 시작...")
     best_val_acc = 0.0
     best_epoch = 0
-    
+
     for epoch in range(args.epochs):
         print(f"\nEpoch {epoch+1}/{args.epochs}")
         print("-" * 40)
-        
+
         # 훈련
-        train_loss, train_acc, state = train_epoch(
-            state, trainloader, epoch, train_rng, verbose=True
+        state, train_loss, step = train_epoch(
+            state, train_rng, model_cls, trainloader, seq_len, in_dim, batchnorm, lr_params
         )
-        
+
         # 검증
         val_loss, val_acc = validate(
-            state, valloader, epoch, verbose=True
+            state, model_cls, valloader, seq_len, in_dim, batchnorm
         )
-        
+
         # 테스트 (마지막 에포크에서만)
         if epoch == args.epochs - 1:
             test_loss, test_acc = validate(
-                state, testloader, epoch, verbose=True, prefix="Test"
+                state, model_cls, testloader, seq_len, in_dim, batchnorm
             )
-        
+
         # 로깅
         log_dict = {
             'epoch': epoch,
             'train_loss': train_loss,
-            'train_acc': train_acc,
             'val_loss': val_loss,
             'val_acc': val_acc,
         }
-        
+
         if epoch == args.epochs - 1:
             log_dict.update({
                 'test_loss': test_loss,
                 'test_acc': test_acc,
             })
-        
+
         wandb.log(log_dict)
-        
+
         # 최고 성능 저장
         if val_acc > best_val_acc:
             best_val_acc = val_acc
             best_epoch = epoch
             print(f"새로운 최고 검증 정확도: {best_val_acc:.4f}")
-        
-        print(f"훈련 손실: {train_loss:.4f}, 훈련 정확도: {train_acc:.4f}")
+
+        print(f"훈련 손실: {train_loss:.4f}")
         print(f"검증 손실: {val_loss:.4f}, 검증 정확도: {val_acc:.4f}")
     
     print("\n" + "=" * 60)
     print("훈련 완료!")
+    print(f"데이터셋: {args.dataset}")
     print(f"최고 검증 정확도: {best_val_acc:.4f} (에포크 {best_epoch+1})")
     if epoch == args.epochs - 1:
         print(f"최종 테스트 정확도: {test_acc:.4f}")

@@ -159,10 +159,10 @@ def create_train_state(model_cls,
                            dummy_input, integration_timesteps,
                            )
     if batchnorm:
-        params = variables["params"].unfreeze()
+        params = variables["params"] if isinstance(variables["params"], dict) else variables["params"].unfreeze()
         batch_stats = variables["batch_stats"]
     else:
-        params = variables["params"].unfreeze()
+        params = variables["params"] if isinstance(variables["params"], dict) else variables["params"].unfreeze()
         # Note: `unfreeze()` is for using Optax.
 
     if opt_config in ["standard"]:
@@ -279,7 +279,7 @@ def create_train_state(model_cls,
 
     fn_is_complex = lambda x: x.dtype in [np.complex64, np.complex128]
     param_sizes = map_nested_fn(lambda k, param: param.size * (2 if fn_is_complex(param) else 1))(params)
-    print(f"[*] Trainable Parameters: {sum(jax.tree_leaves(param_sizes))}")
+    print(f"[*] Trainable Parameters: {sum(jax.tree.leaves(param_sizes))}")
 
     if batchnorm:
         class TrainState(train_state.TrainState):
