@@ -37,7 +37,7 @@ conda activate s5
 ```bash
 python -m s5.train_ex --dataset cifar-classification --epochs 20 --bsz 32
 ```
-#### 보조 상태 활성화 (absorbed 모드, 선형 스케일링링)
+#### 보조 상태 활성화 (absorbed 모드, 선형 스케일링)
 ```bash
 python -m s5.train_ex --dataset cifar-classification --enable_auxiliary --aux_mode absorbed --delta_type linear --epochs 20 --bsz 32
 ```
