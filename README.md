@@ -64,7 +64,7 @@ python -m s5.train_ex --dataset cifar-classification --enable_auxiliary --aux_mo
 --delta_type [linear, exponential, sinusoidal, polynomial, constant]
 ```
 
-## 추가 자료
+## 추가 설명
 ### aux mode
 <img width="600" height="746" alt="image" src="https://github.com/user-attachments/assets/447cd98b-94d1-42f1-a33c-98cf2cd0b680" />
 
