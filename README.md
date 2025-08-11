@@ -38,7 +38,13 @@ python -m s5.train_ex --dataset cifar-classification --enable_auxiliary --aux_mo
 # explicit 모드, 지수 스케일링
 python -m s5.train_ex --dataset cifar-classification --enable_auxiliary --aux_mode explicit --delta_type linear --epochs 20 --bsz 32
 
-
 # 사인파 스케일링
-python -m s5.train_ex --dataset cifar-classification --enable_auxiliary --aux_mode absorbed --delta_type sinusoidal --epochs 20 --bsz 32
+python -m s5.train_ex --dataset cifar-classification --enable_auxiliary --aux_mode explicit --delta_type sinusoidal --epochs 20 --bsz 32
 ```
+--dataset [mnist-classification, cifar-classification, imdb-classification, litsops-classification, pathfinder-classification]
+--aux_mode [absorbed, explicit]  
+--delta_type [linear, exponential, sinusoidal, polynomial, constant]  
+
+--
+<img width="600" height="746" alt="image" src="https://github.com/user-attachments/assets/447cd98b-94d1-42f1-a33c-98cf2cd0b680" />
+<img width="641" height="746" alt="image" src="https://github.com/user-attachments/assets/e1d75187-b65f-44cb-97e7-27d581aa1da9" />
