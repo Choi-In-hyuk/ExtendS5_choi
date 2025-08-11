@@ -1,9 +1,10 @@
-flax
-torch
-torchtext
+flax==0.5.3
+torch==1.10.0
+torchtext==0.11.0
 tensorflow-datasets==4.5.2
 pydub==0.25.1
 datasets
 tqdm
---find-links https://storage.googleapis.com/jax-releases/jax_releases.html
-jax[cuda]>=version
+--find-links https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+jax[cuda11_pip]==0.3.25
+einops
