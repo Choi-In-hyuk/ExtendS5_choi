@@ -73,13 +73,17 @@ def _binary_operator(q_i, q_j):
     return A_j * A_i, A_j * b_i + b_j
 
 
+@jax.vmap
 def _affine_binop_2x2(q_i, q_j):
-    """Associative operator for 2x2 block affine maps: (A,b)◦(A',b')=(AA', Ab'+b).
-    A: (2,2), b: (2,).
-    """
-    A_i, b_i = q_i
-    A_j, b_j = q_j
-    return A_j @ A_i, A_j @ b_i + b_j
+    """2x2 affine transformation binary operator for associative scan"""
+    A_i, b_i = q_i  # A_i: (2,2), b_i: (2,)
+    A_j, b_j = q_j  # A_j: (2,2), b_j: (2,)
+    
+    # Combine: s_{t+1} = A_j @ (A_i @ s_t + b_i) + b_j = (A_j @ A_i) @ s_t + (A_j @ b_i + b_j)
+    A_combined = A_j @ A_i  # (2,2)
+    b_combined = A_j @ b_i + b_j  # (2,)
+    
+    return A_combined, b_combined
 
 
 # =========================
@@ -194,61 +198,105 @@ def apply_ssm_explicit(Lambda_bar, B_bar, C_tilde, E_diag, input_sequence,
                         delta_params, delta_type, conj_sym, bidirectional,
                         bound_delta):
     """Explicitly scan augmented state s_t=[x_t, p_t] with 2x2 blocks per mode.
-    Lambda_bar: (P,) or (L,P) complex
-    B_bar: (P,H) complex
-    E_diag: (P,) complex
-    input_sequence: (L,H) float
-    Returns: outputs (L,H) real
+    
+    Args:
+        Lambda_bar: (P,) or (L,P) complex - 이산화된 상태 행렬
+        B_bar: (P,H) complex - 이산화된 입력 행렬
+        E_diag: (P,) complex - 보조 상태 영향 대각 벡터
+        input_sequence: (L,H) float - 입력 시퀀스
+        delta_params: Δ(t) 파라미터
+        delta_type: Δ(t) 타입
+        conj_sym: conjugate symmetry 여부
+        bidirectional: 양방향 여부
+        bound_delta: Δ(t)를 [0,1]로 제한할지 여부
+    
+    Returns: 
+        outputs (L,H) real
     """
     L, H = input_sequence.shape
     P = Lambda_bar.shape[-1]
 
-    # Δ(t)
+    # Δ(t) 계산
     Delta_t = compute_time_dependent_delta(L, delta_type, delta_params, bound_to_01=bound_delta)  # (L,)
 
-    # expand Lambda over time
+    # Lambda를 시간에 따라 확장
     if Lambda_bar.ndim == 1:
-        Lambda_base = np.broadcast_to(Lambda_bar, (L, P))
+        Lambda_base = np.broadcast_to(Lambda_bar, (L, P))  # (L,P)
     else:
         Lambda_base = Lambda_bar  # (L,P)
 
-    # Bu per time (complex)
-    Bu = jax.vmap(lambda u: B_bar @ u)(input_sequence)  # (L,P)
+    # 입력 항 Bu 계산 (각 시간 단계별로)
+    Bu = jax.vmap(lambda u: B_bar @ u)(input_sequence)  # (L,P) complex
 
-    # Build per (t,k) 2x2 A and 2-dim b
-    lam = Lambda_base[..., None, None]             # (L,P,1,1)
-    e = E_diag[None, :, None, None]                # (1,P,1,1)
-    dlt = Delta_t[:, None, None, None]             # (L,1,1,1)
+    # 각 모드별로 2x2 상태 전이 행렬과 입력 벡터 구성
+    # s_t = [x_t, p_t] 형태의 확장 상태
+    
+    # Lambda와 E를 적절한 차원으로 확장
+    lam = Lambda_base[:, :, None, None]           # (L,P,1,1)
+    e = E_diag[None, :, None, None]               # (1,P,1,1) 
+    dlt = Delta_t[:, None, None, None]            # (L,1,1,1)
 
-    A = np.concatenate([
-            np.concatenate([lam,         e], axis=-1),
-            np.concatenate([dlt * lam, dlt * e], axis=-1)
-        ], axis=-2)                                 # (L,P,2,2)
+    # E를 (L,P,1,1) 형태로 브로드캐스트
+    e_broadcast = np.broadcast_to(e, (L, P, 1, 1))  # (L,P,1,1)
 
+    # 2x2 상태 전이 행렬 A 구성
+    # [[λ, E], [δλ, δE]] 형태
+    A_top = np.concatenate([lam, e_broadcast], axis=-1)      # (L,P,1,2)
+    A_bottom = np.concatenate([dlt * lam, dlt * e_broadcast], axis=-1)  # (L,P,1,2)
+    A = np.concatenate([A_top, A_bottom], axis=-2)  # (L,P,2,2)
+
+    # 2차원 입력 벡터 b 구성: [Bu, δ*Bu]
     b = np.stack([Bu, Delta_t[:, None] * Bu], axis=-1)  # (L,P,2)
 
-    # Scan along time for each mode independently
+    # 각 모드별로 독립적으로 스캔 수행
     def scan_one_mode(Ak, bk):
-        # Ak: (L,2,2), bk: (L,2)
+        """단일 모드에 대한 스캔
+        Args:
+            Ak: (L,2,2) - 시간별 2x2 상태 전이 행렬
+            bk: (L,2) - 시간별 2차원 입력 벡터
+        Returns:
+            s: (L,2) - 확장 상태 [x_t, p_t]
+        """
         _, s = jax.lax.associative_scan(_affine_binop_2x2, (Ak, bk))  # (L,2)
         return s  # (L,2)
 
+    # 모든 모드에 대해 병렬로 스캔 수행
     s_all = jax.vmap(scan_one_mode, in_axes=(1, 1))(A, b)  # (P,L,2)
-    s_all = s_all.transpose((1, 0, 2))  # (L,P,2)
-    x = s_all[..., 0]
+    s_all = s_all.transpose((1, 0, 2))  # (L,P,2)로 차원 순서 변경
+    
+    # 주 상태 x_t 추출 (확장 상태의 첫 번째 성분)
+    x = s_all[..., 0]  # (L,P)
 
+    # 양방향 처리
     if bidirectional:
-        A_rev = A[::-1]
-        b_rev = b[::-1]
+        # 역방향 처리를 위해 A와 b를 시간 순서 반전
+        A_rev = A[::-1]  # (L,P,2,2) 역순
+        b_rev = b[::-1]  # (L,P,2) 역순
+        
+        # 역방향 스캔 수행
         s_all_rev = jax.vmap(scan_one_mode, in_axes=(1, 1))(A_rev, b_rev)  # (P,L,2)
-        s_all_rev = s_all_rev.transpose((1, 0, 2))[::-1]
-        x_rev = s_all_rev[..., 0]
+        s_all_rev = s_all_rev.transpose((1, 0, 2))[::-1]  # (L,P,2)로 변환 후 시간 순서 복원
+        x_rev = s_all_rev[..., 0]  # (L,P)
+        
+        # 순방향과 역방향 상태를 결합
         states = np.concatenate([x, x_rev], axis=-1)  # (L,2P)
     else:
         states = x  # (L,P)
 
-    ys = _apply_outputs_from_states(states, C_tilde, conj_sym)
-    return ys
+    # 상태로부터 출력 계산
+    outputs = _apply_outputs_from_states(states, C_tilde, conj_sym)
+    return outputs
+
+def apply_ssm_with_auxiliary_correct(Lambda_bar, B_bar, C_tilde, E_diag, 
+                                   input_sequence, delta_params, delta_type, 
+                                   conj_sym, bidirectional):
+    """
+    효율적인 병렬 보조 상태 SSM 적용 (기존 함수 유지)
+    """
+    # apply_ssm_explicit 호출로 대체
+    return apply_ssm_explicit(Lambda_bar, B_bar, C_tilde, E_diag, 
+                             input_sequence, delta_params, delta_type, 
+                             conj_sym, bidirectional, bound_delta=False)
 
 
 # =========================

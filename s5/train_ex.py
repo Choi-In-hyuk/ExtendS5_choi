@@ -26,8 +26,8 @@ from .ssm_extend import init_ExtendedS5SSM
 
 
 def create_parser():
-    parser = argparse.ArgumentParser(description="ExtendedS5SSM 학습")
-    # 데이터셋
+    parser = argparse.ArgumentParser(description="ExtendedS5SSM training")
+    # dataset
     parser.add_argument(
         "--dataset",
         type=str,
@@ -45,9 +45,9 @@ def create_parser():
             "speech35-classification",
             "selective-copying",
         ],
-        help="사용할 데이터셋",
+        help="dataset to use",
     )
-    parser.add_argument("--dir_name", type=str, default="./data", help="데이터 루트 디렉토리")
+    parser.add_argument("--dir_name", type=str, default="./data", help="root directory for data")
 
     # 학습 파라미터
     parser.add_argument("--epochs", type=int, default=20)
@@ -56,7 +56,7 @@ def create_parser():
     parser.add_argument("--weight_decay", type=float, default=1e-4)
     parser.add_argument("--jax_seed", type=int, default=42)
 
-    # 모델/SSM 파라미터
+    # model/SSM parameters
     parser.add_argument("--d_model", type=int, default=128)
     parser.add_argument("--n_layers", type=int, default=4)
     parser.add_argument("--p_dropout", type=float, default=0.1)
@@ -71,13 +71,13 @@ def create_parser():
     parser.add_argument("--clip_eigs", action="store_true")
     parser.add_argument("--bidirectional", action="store_true")
 
-    # Extended 옵션
+    # Extended options
     parser.add_argument("--enable_auxiliary", action="store_true")
     parser.add_argument("--aux_mode", type=str, default="absorbed", choices=["absorbed", "explicit"]) 
     parser.add_argument("--delta_type", type=str, default="linear", choices=["linear", "exponential", "sinusoidal", "polynomial", "constant"]) 
     parser.add_argument("--bound_delta", action="store_true")
 
-    # 로깅
+    # logging
     parser.add_argument("--use_wandb", action="store_true")
     parser.add_argument("--wandb_project", type=str, default="s5-extended")
     parser.add_argument("--wandb_entity", type=str, default=None)
@@ -89,22 +89,22 @@ def main():
     parser = create_parser()
     args = parser.parse_args()
 
-    # WandB 설정
+    # WandB setup
     if args.use_wandb:
         wandb.init(project=args.wandb_project, config=vars(args), entity=args.wandb_entity)
     else:
         wandb.init(mode="offline")
 
-    # 시드
+    # seed
     key = random.PRNGKey(args.jax_seed)
     init_rng, train_rng = random.split(key, num=2)
 
-    # 데이터셋
+    # dataset
     create_dataset_fn = Datasets[args.dataset]
     trainloader, valloader, testloader, aux_dataloaders, n_classes, seq_len, in_dim, train_size = \
         create_dataset_fn(args.dir_name, seed=args.jax_seed, bsz=args.bsz)
 
-    # 데이터셋별 패딩/모델 설정
+    # dataset-specific padding/model setup
     if args.dataset in ["imdb-classification", "listops-classification", "aan-classification", "selective-copying"]:
         padded = True
     else:
@@ -182,7 +182,7 @@ def main():
         dt_global=False,
     )
 
-    # 러닝레이트 스케줄 파라미터
+    # 학습률 스케줄 파라미터
     steps_per_epoch = max(1, int(train_size / args.bsz))
     end_step = steps_per_epoch * args.epochs
     lr_params = (cosine_annealing, args.lr, args.lr, 0, end_step, "standard", 1e-6)
@@ -191,12 +191,12 @@ def main():
     best_val_acc = -1.0
     best_epoch = 0
 
-    print("[*] 훈련 시작...")
+    print("[*] Training started...")
     for epoch in range(args.epochs):
         print(f"\nEpoch {epoch+1}/{args.epochs}")
         print("-" * 40)
 
-        # 한 에포크 학습
+        # 단일 에포크 학습
         train_rng, skey = random.split(train_rng)
         state, train_loss, step = train_epoch(
             state,
@@ -225,14 +225,14 @@ def main():
         if val_acc > best_val_acc:
             best_val_acc = val_acc
             best_epoch = epoch
-            print(f"새로운 최고 검증 정확도: {best_val_acc:.4f}")
+            print(f"new best val acc: {best_val_acc:.4f}")
 
-        print(f"훈련 손실: {float(train_loss):.4f}")
-        print(f"검증 손실: {float(val_loss):.4f}, 검증 정확도: {float(val_acc):.4f}")
-        print(f"테스트 손실: {float(test_loss):.4f}, 테스트 정확도: {float(test_acc):.4f}")
+        print(f"train loss: {float(train_loss):.4f}")
+        print(f"val loss: {float(val_loss):.4f}, val acc: {float(val_acc):.4f}")
+        print(f"test loss: {float(test_loss):.4f}, test acc: {float(test_acc):.4f}")
 
-    print("\n학습 완료!")
-    print(f"최고 검증 정확도: {best_val_acc:.4f} (에포크 {best_epoch+1})")
+    print("\nTraining completed!")
+    print(f"best val acc: {best_val_acc:.4f} (epoch {best_epoch+1})")
     wandb.finish()
 
 
