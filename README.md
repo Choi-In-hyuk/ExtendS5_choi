@@ -33,26 +33,39 @@ conda activate s5
 
 ## 3. 기본 실행
 
+#### cifar10 분류 (보조 상태 비활성화)
 ```bash
-# cifar10 분류 (보조 상태 비활성화)
 python -m s5.train_ex --dataset cifar-classification --epochs 20 --bsz 32
-
-# 보조 상태 활성화 (absorbed 모드, 선형 스케일링링)
+```
+#### 보조 상태 활성화 (absorbed 모드, 선형 스케일링링)
+```bash
 python -m s5.train_ex --dataset cifar-classification --enable_auxiliary --aux_mode absorbed --delta_type linear --epochs 20 --bsz 32
-
-# explicit 모드, 지수 스케일링
+```
+#### explicit 모드, 지수 스케일링
+```bash
 python -m s5.train_ex --dataset cifar-classification --enable_auxiliary --aux_mode explicit --delta_type linear --epochs 20 --bsz 32
-
-# 사인파 스케일링
+```
+#### explicit 모드, 사인파 스케일링
+```bash
 python -m s5.train_ex --dataset cifar-classification --enable_auxiliary --aux_mode explicit --delta_type sinusoidal --epochs 20 --bsz 32
 ```
 
 ## 4. argparse
---dataset [mnist-classification, cifar-classification, imdb-classification, litsops-classification, pathfinder-classification]  
---aux_mode [absorbed, explicit]  
---delta_type [linear, exponential, sinusoidal, polynomial, constant]  
+#### 데이터셋 종류
+```bash
+--dataset [mnist-classification, cifar-classification, imdb-classification, litsops-classification, pathfinder-classification]
+```
+#### aux_mode
+```bash
+--aux_mode [absorbed, explicit]
+```
+#### Δ(t) type
+```bash
+--delta_type [linear, exponential, sinusoidal, polynomial, constant]
+```
 
---
 ## 추가 자료
+### aux mode
 <img width="600" height="746" alt="image" src="https://github.com/user-attachments/assets/447cd98b-94d1-42f1-a33c-98cf2cd0b680" />
+### Δ(t) type
 <img width="641" height="746" alt="image" src="https://github.com/user-attachments/assets/e1d75187-b65f-44cb-97e7-27d581aa1da9" />
