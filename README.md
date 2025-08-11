@@ -65,8 +65,9 @@ python -m s5.train_ex --dataset cifar-classification --enable_auxiliary --aux_mo
 ```
 
 ## 추가 자료
-## aux mode
+### aux mode
 <img width="600" height="746" alt="image" src="https://github.com/user-attachments/assets/447cd98b-94d1-42f1-a33c-98cf2cd0b680" />
+
 --
 
 ## Δ(t) type
