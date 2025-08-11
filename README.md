@@ -70,4 +70,5 @@ python -m s5.train_ex --dataset cifar-classification --enable_auxiliary --aux_mo
 
 
 ## Δ(t) type
-<img width="641" height="746" alt="image" src="https://github.com/user-attachments/assets/e1d75187-b65f-44cb-97e7-27d581aa1da9" />
+<img width="641" height="746" alt="image" src="https://github.com/user-attachments/assets/63b217a0-4ae9-41ad-bd7d-3ef19ab2de29" />
+
