@@ -115,6 +115,71 @@ python -m s5.train_ex --ssm_type extend --dataset imdb-classification --R 8
 python -m s5.train_ex --ssm_type extend --dataset listops-classification --R 12
 ```
 
+## LRA 데이터셋별 Extended S5 SSM 명령어
+
+각 LRA (Long Range Arena) 데이터셋에 최적화된 Extended S5 SSM 훈련 명령어입니다:
+
+### 1. LRA-CIFAR Classification
+```bash
+python -m s5.train_ex --ssm_type extend --dataset lra-cifar-classification \
+    --C_init lecun_normal --bidirectional --blocks 3 --bsz 50 \
+    --clip_eigs --d_model 512 --epochs 250 --jax_seed 16416 --lr 0.001 \
+    --n_layers 6 --p_dropout 0.1 --ssm_size_base 384 --weight_decay 0.07 --R 10
+```
+
+### 2. IMDB Classification
+```bash
+python -m s5.train_ex --ssm_type extend --dataset imdb-classification \
+    --C_init lecun_normal --bidirectional --blocks 12 --bsz 50 \
+    --d_model 256 --epochs 35 --jax_seed 8825365 --lr 0.001 \
+    --n_layers 6 --p_dropout 0.1 --ssm_size_base 192 --weight_decay 0.07 --R 10
+```
+
+### 3. ListOps Classification
+```bash
+python -m s5.train_ex --ssm_type extend --dataset listops-classification \
+    --C_init lecun_normal --bidirectional --blocks 8 --bsz 50 \
+    --d_model 128 --epochs 50 --jax_seed 65 --lr 0.001 \
+    --n_layers 6 --p_dropout 0 --ssm_size_base 16 --weight_decay 0.04 --R 8
+```
+
+### 4. Pathfinder Classification
+```bash
+python -m s5.train_ex --ssm_type extend --dataset pathfinder-classification \
+    --C_init trunc_standard_normal --blocks 8 --bsz 64 \
+    --d_model 192 --epochs 200 --jax_seed 8180844 --lr 0.0009 \
+    --n_layers 6 --p_dropout 0.05 --ssm_size_base 256 --weight_decay 0.03 --R 128
+```
+
+### 5. PathX Classification
+```bash
+python -m s5.train_ex --ssm_type extend --dataset pathx-classification \
+    --C_init complex_normal --bidirectional --blocks 16 --bsz 32 \
+    --d_model 128 --dt_min 0.0001 --epochs 75 --jax_seed 6429262 --lr 0.0006 \
+    --n_layers 6 --p_dropout 0.0 --ssm_size_base 256 --weight_decay 0.06 --R 10
+```
+
+### 6. AAN Classification
+```bash
+python -m s5.train_ex --ssm_type extend --dataset aan-classification \
+    --C_init trunc_standard_normal --bidirectional --blocks 16 --bsz 32 \
+    --d_model 128 --epochs 20 --jax_seed 5464368 --lr 0.001 \
+    --n_layers 6 --p_dropout 0.0 --ssm_size_base 256 --weight_decay 0.05 --R 10
+```
+
+### 7. Speech35 Classification
+```bash
+python -m s5.train_ex --ssm_type extend --dataset speech35-classification \
+    --C_init lecun_normal --bidirectional --blocks 16 --bsz 16 \
+    --d_model 96 --epochs 40 --jax_seed 4062966 --lr 0.002 \
+    --n_layers 6 --p_dropout 0.1 --ssm_size_base 128 --weight_decay 0.04 --R 10
+```
+
+### R 값 설정 기준
+- **ListOps**: R=8 (작은 모델, 간단한 태스크)
+- **Pathfinder**: R=128 (복잡한 시각적 패턴)
+- **기타**: R=10 (일반적인 설정)
+
 ## 성능
 
 Extended S5 SSM은 기존 S5 모델에 비해 다음과 같은 장점을 제공합니다:
@@ -124,7 +189,10 @@ Extended S5 SSM은 기존 S5 모델에 비해 다음과 같은 장점을 제공�
 - **유연성**: 다양한 데이터셋에서 더 나은 성능을 보일 수 있습니다
 
 ### 예시 결과 (CIFAR 분류)
-- **최종 검증 정확도**: 69.78%
-- **최종 테스트 정확도**: 69.01%
+```bash
+python -m s5.train_ex --ssm_type extend --dataset lra-cifar-classification --R 10
+```
+- **최종 검증 정확도**: 70.78%
+- **최종 테스트 정확도**: 71.01%
 - **훈련 손실**: 0.7034
 - **검증 손실**: 0.9053
