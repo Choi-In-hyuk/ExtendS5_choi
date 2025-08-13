@@ -2,7 +2,6 @@
 """
 Extended S5 실험용 간단 학습 스크립트
 - s5/ssm_extend.py 의 init_ExtendedS5SSM 사용
-- s5/train.py 흐름을 간소화하여 단일 태스크 학습에 맞춤
 """
 
 import argparse
@@ -70,11 +69,27 @@ def create_parser():
     parser.add_argument("--conj_sym", action="store_true")
     parser.add_argument("--clip_eigs", action="store_true")
     parser.add_argument("--bidirectional", action="store_true")
+    parser.add_argument("--R", type=int, default=10)
 
-    # Extended options
+    # SSM type selection
+    parser.add_argument(
+        "--ssm_type", 
+        type=str, 
+        default="extend",
+        choices=["extend"],
+        help="Type of extended SSM to use: 'extend' for auxiliary state extension, 'edf' for E*Delta(t)*F modification, 'none' for no extension"
+    )
+
+    # Extended options (for ssm_extend)
     parser.add_argument("--enable_auxiliary", action="store_true")
-    parser.add_argument("--aux_mode", type=str, default="absorbed", choices=["absorbed", "explicit"]) 
-    parser.add_argument("--delta_type", type=str, default="linear", choices=["linear", "exponential", "sinusoidal", "polynomial", "constant"]) 
+    parser.add_argument("--delta_mode", type=str, default="learnable", choices=["parameterized", "learnable"])
+
+    # EDF options (for ssm_edf)
+    parser.add_argument("--enable_edf", action="store_true", help="Enable EDF modules (E*Delta(t)*F)")
+    parser.add_argument("--edf_std", type=float, default=0.1, help="Standard deviation for EDF matrix initialization")
+
+    # Common delta parameters (used by both ssm types)
+    parser.add_argument("--delta_type", type=str, default="learnable", choices=["linear", "exponential", "sinusoidal", "polynomial", "constant", "learnable"]) 
     parser.add_argument("--bound_delta", action="store_true")
 
     # logging
@@ -85,13 +100,67 @@ def create_parser():
     return parser
 
 
+def create_ssm_init_fn(args, Lambda, V, Vinv, ssm_size):
+    """Create SSM initialization function based on ssm_type."""
+    
+    if args.ssm_type == "extend":
+        # Use original ssm_extend
+        ssm_init_fn = init_ExtendedS5SSM(
+            H=args.d_model,
+            P=ssm_size,
+            R=args.R,
+            Lambda_re_init=Lambda.real,
+            Lambda_im_init=Lambda.imag,
+            V=V,
+            Vinv=Vinv,
+            C_init=args.C_init,
+            discretization=args.discretization,
+            dt_min=args.dt_min,
+            dt_max=args.dt_max,
+            conj_sym=args.conj_sym,
+            clip_eigs=args.clip_eigs,
+            bidirectional=args.bidirectional,
+        )
+    elif args.ssm_type == "none":
+        ssm_init_fn = init_S5SSM(
+            H=args.d_model,
+            P=ssm_size,
+            Lambda_re_init=Lambda.real,
+            Lambda_im_init=Lambda.imag,
+            V=V,
+            Vinv=Vinv,
+            C_init=args.C_init,
+            discretization=args.discretization,
+            dt_min=args.dt_min,
+            dt_max=args.dt_max,
+            conj_sym=args.conj_sym,
+            clip_eigs=args.clip_eigs,
+            bidirectional=args.bidirectional,
+        )
+    else:
+        raise ValueError(f"Unknown ssm_type: {args.ssm_type}")
+    
+    return ssm_init_fn
+
+
 def main():
     parser = create_parser()
     args = parser.parse_args()
 
+    # Argument validation
+    if args.ssm_type == "extend":
+        if not args.enable_auxiliary:
+            print("Warning: ssm_type='extend' but enable_auxiliary=False. Consider setting --enable_auxiliary")
+
     # WandB setup
+    config = vars(args).copy()
+    config["ssm_type_description"] = {
+        "extend": "Auxiliary state extension (original ssm_extend)",
+        "none": "No extension"
+    }[args.ssm_type]
+    
     if args.use_wandb:
-        wandb.init(project=args.wandb_project, config=vars(args), entity=args.wandb_entity)
+        wandb.init(project=args.wandb_project, config=config, entity=args.wandb_entity)
     else:
         wandb.init(mode="offline")
 
@@ -127,26 +196,13 @@ def main():
     V = block_diag(*([V] * args.blocks))
     Vinv = block_diag(*([Vc] * args.blocks))
 
-    # ExtendedS5SSM 초기화 함수
-    ssm_init_fn = init_ExtendedS5SSM(
-        H=args.d_model,
-        P=ssm_size,
-        Lambda_re_init=Lambda.real,
-        Lambda_im_init=Lambda.imag,
-        V=V,
-        Vinv=Vinv,
-        C_init=args.C_init,
-        discretization=args.discretization,
-        dt_min=args.dt_min,
-        dt_max=args.dt_max,
-        conj_sym=args.conj_sym,
-        clip_eigs=args.clip_eigs,
-        bidirectional=args.bidirectional,
-        enable_auxiliary=args.enable_auxiliary,
-        aux_mode=args.aux_mode,
-        delta_type=args.delta_type,
-        bound_delta=args.bound_delta,
-    )
+    # SSM 초기화 함수 생성 (타입별 분기)
+    ssm_init_fn = create_ssm_init_fn(args, Lambda, V, Vinv, ssm_size)
+
+    print(f"[*] Using SSM type: {args.ssm_type}")
+    if args.ssm_type == "extend":
+        print(f"    - Auxiliary enabled: {args.enable_auxiliary}")
+    print(f"    - Delta type: {args.delta_type}")
 
     # 모델 클래스
     model_cls = partial(
@@ -213,14 +269,24 @@ def main():
         val_loss, val_acc = validate(state, model_cls, valloader, seq_len, in_dim, False)
         test_loss, test_acc = validate(state, model_cls, testloader, seq_len, in_dim, False)
 
-        wandb.log({
+        # 로그 데이터 구성
+        log_data = {
             "epoch": epoch,
             "train_loss": float(train_loss),
             "val_loss": float(val_loss),
             "val_acc": float(val_acc),
             "test_loss": float(test_loss),
             "test_acc": float(test_acc),
-        })
+            "ssm_type": args.ssm_type,
+        }
+
+        # SSM 타입별 추가 로깅
+        if args.ssm_type == "extend":
+            log_data.update({
+                "enable_auxiliary": args.enable_auxiliary,
+            })
+
+        wandb.log(log_data)
 
         if val_acc > best_val_acc:
             best_val_acc = val_acc
@@ -232,7 +298,16 @@ def main():
         print(f"test loss: {float(test_loss):.4f}, test acc: {float(test_acc):.4f}")
 
     print("\nTraining completed!")
-    print(f"best val acc: {best_val_acc:.4f} (epoch {best_epoch+1})")
+    print(f"Best validation accuracy: {best_val_acc:.4f} (epoch {best_epoch+1})")
+    print(f"SSM type used: {args.ssm_type}")
+    
+    # Final summary to WandB
+    wandb.log({
+        "best_val_acc": best_val_acc,
+        "best_epoch": best_epoch,
+        "final_test_acc": float(test_acc),
+    })
+    
     wandb.finish()
 
 

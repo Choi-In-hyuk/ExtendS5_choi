@@ -212,7 +212,7 @@ def create_lra_image_classification_dataset(cache_dir: Union[str, Path] = DEFAUL
 	Cifar is quick to download and is automatically cached.
 	"""
 
-	print("[*] Generating LRA-listops Classification Dataset")
+	print("[*] Generating LRA-CIFAR10 Classification Dataset")
 	from s5.dataloaders.basic import CIFAR10
 	name = 'cifar'
 
