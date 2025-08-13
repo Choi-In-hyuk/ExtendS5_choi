@@ -51,6 +51,7 @@ print("Flax:", flax.__version__, "Chex:", chex.__version__, "Optax:", optax.__ve
 print("Torch:", torch.__version__, "CUDA available:", torch.cuda.is_available())
 print("JAX devices:", jax.devices())
 PY
+```
 
 ## 2. 데이터 다운로드
 
