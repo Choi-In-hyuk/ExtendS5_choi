@@ -123,7 +123,7 @@ def create_lra_listops_classification_dataset(cache_dir: Union[str, Path] = DEFA
 	print("[*] Generating LRA-listops Classification Dataset")
 	from s5.dataloaders.lra import ListOps
 	name = 'listops'
-	dir_name = './raw_datasets/lra_release/lra_release/listops-1000'
+	dir_name = './raw_datasets/lra_release/listops-1000'
 
 	dataset_obj = ListOps(name, data_dir=dir_name)
 	dataset_obj.cache_dir = Path(cache_dir) / name
