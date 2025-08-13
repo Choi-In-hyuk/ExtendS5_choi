@@ -1,6 +1,3 @@
-
-## 1. 환경 설정
-
 # ExtendS5 환경 세팅 (JAX 0.3.25 + CUDA 11 계열)
 
 > 목적: Python 3.9 + JAX 0.3.25(+cuda11.cudnn82) + Flax 0.5.3 조합에서 발생하는
@@ -62,12 +59,12 @@ pip install wandb
 pip install einops
 ```
 
-### LRA-CIFAR10 experiment
+### 실행 테스트
 ```bash
 python -m s5.train_ex --dataset lra-cifar-classification --epochs 20 --bsz 32
 ```
 
-## 2. 데이터 다운로드
+# 데이터 다운로드
 
 #### LRA 데이터셋 다운로드
 ```bash
@@ -79,7 +76,7 @@ python -m s5.train_ex --dataset lra-cifar-classification --epochs 20 --bsz 32
 ./bin/download_all.sh
 ```
 
-## 3. 기본 실행
+# 기본 실행
 
 #### absorbed 모드, 선형 스케일링
 ```bash
