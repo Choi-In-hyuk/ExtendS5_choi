@@ -52,6 +52,20 @@ print("Torch:", torch.__version__, "CUDA available:", torch.cuda.is_available())
 print("JAX devices:", jax.devices())
 PY
 ```
+### wandb 설정
+```bash
+pip install wandb
+```
+
+### einops 설치
+```bash
+pip install einops
+```
+
+### LRA-CIFAR10 experiment
+```bash
+python -m s5.train_ex --dataset lra-cifar-classification --epochs 20 --bsz 32
+```
 
 ## 2. 데이터 다운로드
 
@@ -67,11 +81,7 @@ PY
 
 ## 3. 기본 실행
 
-#### cifar10 분류 (보조 상태 비활성화)
-```bash
-python -m s5.train_ex --dataset lra-cifar-classification --epochs 20 --bsz 32
-```
-#### 보조 상태 활성화 (absorbed 모드, 선형 스케일링)
+#### absorbed 모드, 선형 스케일링
 ```bash
 python -m s5.train_ex --dataset lra-cifar-classification --enable_auxiliary --aux_mode absorbed --delta_type linear --epochs 20 --bsz 32
 ```
