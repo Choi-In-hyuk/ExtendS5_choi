@@ -175,11 +175,6 @@ python -m s5.train_ex --ssm_type extend --dataset speech35-classification \
     --n_layers 6 --p_dropout 0.1 --ssm_size_base 128 --weight_decay 0.04 --R 10
 ```
 
-### R 값 설정 기준
-- **ListOps**: R=8 (작은 모델, 간단한 태스크)
-- **Pathfinder**: R=128 (복잡한 시각적 패턴)
-- **기타**: R=10 (일반적인 설정)
-
 ## 성능
 
 Extended S5 SSM은 기존 S5 모델에 비해 다음과 같은 장점을 제공합니다:
