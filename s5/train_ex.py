@@ -81,7 +81,6 @@ def create_parser():
     )
 
     # Extended options (for ssm_extend)
-    parser.add_argument("--enable_auxiliary", action="store_true")
     parser.add_argument("--delta_mode", type=str, default="learnable", choices=["parameterized", "learnable"])
 
     # EDF options (for ssm_edf)
@@ -149,8 +148,7 @@ def main():
 
     # Argument validation
     if args.ssm_type == "extend":
-        if not args.enable_auxiliary:
-            print("Warning: ssm_type='extend' but enable_auxiliary=False. Consider setting --enable_auxiliary")
+        print("Using Extended S5 SSM with Lambda extension")
 
     # WandB setup
     config = vars(args).copy()
@@ -201,7 +199,7 @@ def main():
 
     print(f"[*] Using SSM type: {args.ssm_type}")
     if args.ssm_type == "extend":
-        print(f"    - Auxiliary enabled: {args.enable_auxiliary}")
+        print(f"    - Lambda extension enabled")
     print(f"    - Delta type: {args.delta_type}")
 
     # 모델 클래스
@@ -283,7 +281,7 @@ def main():
         # SSM 타입별 추가 로깅
         if args.ssm_type == "extend":
             log_data.update({
-                "enable_auxiliary": args.enable_auxiliary,
+                "lambda_extension": True,
             })
 
         wandb.log(log_data)

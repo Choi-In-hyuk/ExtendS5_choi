@@ -102,17 +102,13 @@ python -m s5.train_ex --ssm_type extend --dataset lra-cifar-classification --R 1
 ```
 
 ### 매개변수 설명
-- `--ssm_type extend`: Extended S5 SSM 사용
+- `--ssm_type extend`: Extended S5 SSM 사용 (Lambda extension 자동 활성화)
 - `--R`: Delta_t 행렬의 랭크 (기본값: 10)
-- `--enable_auxiliary`: 보조 상태 활성화 (권장)
 
 ### 예시 실행
 ```bash
 # 기본 Extended S5 SSM
 python -m s5.train_ex --ssm_type extend --dataset lra-cifar-classification --R 10
-
-# 보조 상태 활성화
-python -m s5.train_ex --ssm_type extend --dataset lra-cifar-classification --R 10 --enable_auxiliary
 
 # 다른 데이터셋에서 사용
 python -m s5.train_ex --ssm_type extend --dataset imdb-classification --R 8
