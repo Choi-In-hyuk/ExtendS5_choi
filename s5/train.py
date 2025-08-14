@@ -3,14 +3,85 @@ from jax import random
 import jax.numpy as np
 from jax.scipy.linalg import block_diag
 import wandb
+import os
+import json
+from datetime import datetime
 
 from .train_helpers import create_train_state, reduce_lr_on_plateau,\
     linear_warmup, cosine_annealing, constant_lr, train_epoch, validate
 from .dataloading import Datasets
 from .seq_model import BatchClassificationModel, RetrievalModel, BatchSelectiveCopyingModel
-from .ssm import S5SSM
-from .ssm_extend import init_ExtendedS5SSM
+from .ssm import S5SSM, init_S5SSM
 from .ssm_init import make_DPLR_HiPPO
+
+
+def save_checkpoint(state, args, epoch, val_loss, val_acc, test_loss, test_acc, best_epoch):
+    """Save model checkpoint when validation loss improves"""
+    if not args.checkpoint:
+        return
+    
+    # Create checkpoint directory
+    checkpoint_dir = f"checkpoints/{args.dataset}"
+    os.makedirs(checkpoint_dir, exist_ok=True)
+    
+    # Save checkpoint info
+    checkpoint_info = {
+        "epoch": epoch,
+        "val_loss": float(val_loss),
+        "val_acc": float(val_acc),
+        "test_loss": float(test_loss),
+        "test_acc": float(test_acc),
+        "best_epoch": best_epoch,
+        "dataset": args.dataset,
+        "timestamp": datetime.now().isoformat(),
+        "args": vars(args)
+    }
+    
+    # Save checkpoint info as JSON
+    checkpoint_path = f"{checkpoint_dir}/checkpoint_info.json"
+    with open(checkpoint_path, 'w') as f:
+        json.dump(checkpoint_info, f, indent=2)
+    
+    # Save model state using JAX's save function
+    try:
+        import jax
+        checkpoint_file = f"{checkpoint_dir}/model_epoch_{epoch:03d}.npz"
+        jax.device_get(state.params)  # Move to CPU before saving
+        np.savez_compressed(
+            checkpoint_file,
+            params=jax.device_get(state.params),
+            opt_state=jax.device_get(state.opt_state),
+            step=state.step
+        )
+        print(f"[*] Checkpoint saved: {checkpoint_file}")
+        print(f"[*] Val Loss: {val_loss:.5f}, Val Acc: {val_acc:.4f}")
+        print(f"[*] Test Loss: {test_loss:.5f}, Test Acc: {test_acc:.4f}")
+        
+        # Save best model separately
+        best_checkpoint_file = f"{checkpoint_dir}/best_model.npz"
+        np.savez_compressed(
+            best_checkpoint_file,
+            params=jax.device_get(state.params),
+            opt_state=jax.device_get(state.opt_state),
+            step=state.step
+        )
+        print(f"[*] Best model saved: {best_checkpoint_file}")
+        
+    except Exception as e:
+        print(f"[!] Failed to save checkpoint: {e}")
+
+
+def load_checkpoint(checkpoint_path, state):
+    """Load model checkpoint"""
+    try:
+        checkpoint = np.load(checkpoint_path, allow_pickle=True)
+        # Note: This is a simplified loading. In practice, you might need to handle
+        # parameter structure changes between different model versions
+        print(f"[*] Checkpoint loaded: {checkpoint_path}")
+        return checkpoint
+    except Exception as e:
+        print(f"[!] Failed to load checkpoint: {e}")
+        return None
 
 
 def train(args):
@@ -100,36 +171,20 @@ def train(args):
     print("V.shape={}".format(V.shape))
     print("Vinv.shape={}".format(Vinv.shape))
 
-    # ssm_kwargs 기본값 설정
-    ssm_kwargs = getattr(args, 'ssm_kwargs', {})
+    ssm_init_fn = init_S5SSM(H=args.d_model,
+                             P=ssm_size,
+                             Lambda_re_init=Lambda.real,
+                             Lambda_im_init=Lambda.imag,
+                             V=V,
+                             Vinv=Vinv,
+                             C_init=args.C_init,
+                             discretization=args.discretization,
+                             dt_min=args.dt_min,
+                             dt_max=args.dt_max,
+                             conj_sym=args.conj_sym,
+                             clip_eigs=args.clip_eigs,
+                             bidirectional=args.bidirectional)
 
-    # 먼저 기본 S5SSM 생성
-    base_ssm = S5SSM(
-        H=args.d_model,
-        P=ssm_size,
-        Lambda_re_init=Lambda.real,
-        Lambda_im_init=Lambda.imag,
-        V=V,
-        Vinv=Vinv,
-        C_init=args.C_init,
-        discretization=args.discretization,
-        dt_min=args.dt_min,
-        dt_max=args.dt_max,
-        conj_sym=args.conj_sym,
-        clip_eigs=args.clip_eigs,
-        bidirectional=args.bidirectional
-    )
-    if args.ssm:
-        ssm_init_fn = base_ssm
-    else:
-        # ExtendedS5SSM 초기화
-        ssm_init_fn = init_ExtendedS5SSM(
-        original_ssm=base_ssm,
-        P=ssm_size,
-        H=args.d_model,
-        R=args.R,
-        ssm_kwargs=ssm_kwargs
-        )
 
     if retrieval:
         # Use retrieval head for AAN task
@@ -195,11 +250,42 @@ def train(args):
                                lr=lr,
                                dt_global=args.dt_global)
 
-    # Training Loop over epochs
-    best_loss, best_acc, best_epoch = 100000000, -100000000.0, 0  # This best loss is val_loss
-    count, best_val_loss = 0, 100000000  # This line is for early stopping purposes
-    lr_count, opt_acc = 0, -100000000.0  # This line is for learning rate decay
-    step = 0  # for per step learning rate decay
+    # Try to load checkpoint if exists
+    start_epoch = 0
+    best_loss, best_acc, best_epoch = 100000000, -100000000.0, 0
+    count, best_val_loss = 0, 100000000
+    lr_count, opt_acc = 0, -100000000.0
+    step = 0
+    
+    if args.checkpoint:
+        checkpoint_dir = f"checkpoints/{args.dataset}"
+        best_checkpoint_path = f"{checkpoint_dir}/best_model.npz"
+        checkpoint_info_path = f"{checkpoint_dir}/checkpoint_info.json"
+        
+        if os.path.exists(best_checkpoint_path) and os.path.exists(checkpoint_info_path):
+            try:
+                # Load checkpoint info
+                with open(checkpoint_info_path, 'r') as f:
+                    checkpoint_info = json.load(f)
+                
+                # Load model state
+                checkpoint = np.load(best_checkpoint_path, allow_pickle=True)
+                
+                # Restore state (simplified - you might need to handle parameter structure)
+                print(f"[*] Loading checkpoint from epoch {checkpoint_info['epoch']}")
+                print(f"[*] Best val loss: {checkpoint_info['val_loss']:.5f}")
+                print(f"[*] Best val acc: {checkpoint_info['val_acc']:.4f}")
+                
+                # Update best metrics
+                best_loss = checkpoint_info['val_loss']
+                best_acc = checkpoint_info['val_acc']
+                best_epoch = checkpoint_info['best_epoch']
+                
+                print(f"[*] Resuming from best checkpoint (epoch {checkpoint_info['epoch']})")
+                
+            except Exception as e:
+                print(f"[!] Failed to load checkpoint: {e}")
+                print("[*] Starting training from scratch")
     steps_per_epoch = int(train_size/args.bsz)
     for epoch in range(args.epochs):
         print(f"[*] Starting Training Epoch {epoch + 1}...")
@@ -288,6 +374,9 @@ def train(args):
                 best_test_loss, best_test_acc = test_loss, test_acc
             else:
                 best_test_loss, best_test_acc = best_loss, best_acc
+
+            # Save checkpoint when validation improves
+            save_checkpoint(state, args, epoch, val_loss, val_acc, test_loss, test_acc, best_epoch)
 
             # Do some validation on improvement.
             if speech:

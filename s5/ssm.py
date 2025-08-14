@@ -243,7 +243,7 @@ class S5SSM(nn.Module):
         Returns:
             output sequence (float32): (L, H)
         """
-        ys = apply_ssm(self.Lambda_bar,
+        _, ys = apply_ssm(self.Lambda_bar,
                        self.B_bar,
                        self.C_tilde,
                        input_sequence,

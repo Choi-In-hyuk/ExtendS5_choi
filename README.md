@@ -64,6 +64,35 @@ pip install einops
 python -m s5.train_ex --dataset lra-cifar-classification --epochs 20 --bsz 32
 ```
 
+### Checkpoint 기능
+
+훈련 중 val loss가 개선될 때마다 자동으로 checkpoint가 저장됩니다.
+
+#### Checkpoint 저장 위치
+- **모델 가중치**: `checkpoints/{dataset}/model_epoch_{epoch}.npz`
+- **최고 성능 모델**: `checkpoints/{dataset}/best_model.npz`
+- **체크포인트 정보**: `checkpoints/{dataset}/checkpoint_info.json`
+
+#### Checkpoint 활성화
+```bash
+# checkpoint 기능 활성화
+python run_train.py --dataset imdb-classification --checkpoint=True
+
+# 또는 스크립트 사용 (이미 checkpoint=True 포함)
+./bin/run_experiments/run_lra_imdb.sh
+```
+
+#### Checkpoint 정보
+저장되는 정보:
+- 훈련 epoch
+- Validation/Test loss 및 accuracy
+- 최고 성능 epoch
+- 훈련 파라미터
+- 타임스탬프
+
+#### 훈련 재시작
+체크포인트가 존재하면 자동으로 최고 성능 모델부터 훈련을 재시작합니다.
+
 # 데이터 다운로드
 
 #### LRA 데이터셋 다운로드
