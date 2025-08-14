@@ -39,18 +39,28 @@ def test_checkpoint_save():
         json.dump(checkpoint_info, f, indent=2)
     
     # 테스트용 모델 가중치 (더미 데이터)
-    dummy_params = {
-        "layer1": np.random.randn(10, 10),
-        "layer2": np.random.randn(10, 5)
+    import pickle
+    dummy_checkpoint_data = {
+        "params": {
+            "layer1": np.random.randn(10, 10),
+            "layer2": np.random.randn(10, 5)
+        },
+        "opt_state": {},
+        "step": 100,
+        "epoch": 10,
+        "val_loss": 0.12345,
+        "val_acc": 0.9876
     }
     
     # 모델 가중치 저장
-    model_path = f"{checkpoint_dir}/model_epoch_010.npz"
-    np.savez_compressed(model_path, **dummy_params)
+    model_path = f"{checkpoint_dir}/model_epoch_010.ckpt"
+    with open(model_path, 'wb') as f:
+        pickle.dump(dummy_checkpoint_data, f)
     
     # 최고 성능 모델 저장
-    best_model_path = f"{checkpoint_dir}/best_model.npz"
-    np.savez_compressed(best_model_path, **dummy_params)
+    best_model_path = f"{checkpoint_dir}/best_model.ckpt"
+    with open(best_model_path, 'wb') as f:
+        pickle.dump(dummy_checkpoint_data, f)
     
     print(f"✅ 체크포인트 정보 저장: {checkpoint_path}")
     print(f"✅ 모델 가중치 저장: {model_path}")
@@ -67,9 +77,12 @@ def test_checkpoint_save():
         print(f"   - Val Acc: {loaded_info['val_acc']:.4f}")
     
     if os.path.exists(model_path):
-        loaded_model = np.load(model_path)
+        with open(model_path, 'rb') as f:
+            loaded_model = pickle.load(f)
         print(f"✅ 모델 가중치 로드 성공")
-        print(f"   - 파라미터 개수: {len(loaded_model.files)}")
+        print(f"   - Epoch: {loaded_model.get('epoch', 'N/A')}")
+        print(f"   - Val Loss: {loaded_model.get('val_loss', 'N/A')}")
+        print(f"   - Val Acc: {loaded_model.get('val_acc', 'N/A')}")
     
     print("\n=== 체크포인트 기능 테스트 완료 ===")
 

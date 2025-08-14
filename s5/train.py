@@ -42,30 +42,35 @@ def save_checkpoint(state, args, epoch, val_loss, val_acc, test_loss, test_acc, 
     with open(checkpoint_path, 'w') as f:
         json.dump(checkpoint_info, f, indent=2)
     
-    # Save model state using JAX's save function
+    # Save model state using pickle for .ckpt format
     try:
         import jax
-        import numpy as np_save
-        checkpoint_file = f"{checkpoint_dir}/model_epoch_{epoch:03d}.npz"
-        jax.device_get(state.params)  # Move to CPU before saving
-        np_save.savez_compressed(
-            checkpoint_file,
-            params=jax.device_get(state.params),
-            opt_state=jax.device_get(state.opt_state),
-            step=state.step
-        )
+        import pickle
+        checkpoint_file = f"{checkpoint_dir}/model_epoch_{epoch:03d}.ckpt"
+        
+        # Prepare checkpoint data
+        checkpoint_data = {
+            'params': jax.device_get(state.params),
+            'opt_state': jax.device_get(state.opt_state),
+            'step': state.step,
+            'epoch': epoch,
+            'val_loss': val_loss,
+            'val_acc': val_acc,
+            'test_loss': test_loss,
+            'test_acc': test_acc
+        }
+        
+        # Save checkpoint
+        with open(checkpoint_file, 'wb') as f:
+            pickle.dump(checkpoint_data, f)
         print(f"[*] Checkpoint saved: {checkpoint_file}")
         print(f"[*] Val Loss: {val_loss:.5f}, Val Acc: {val_acc:.4f}")
         print(f"[*] Test Loss: {test_loss:.5f}, Test Acc: {test_acc:.4f}")
         
         # Save best model separately
-        best_checkpoint_file = f"{checkpoint_dir}/best_model.npz"
-        np_save.savez_compressed(
-            best_checkpoint_file,
-            params=jax.device_get(state.params),
-            opt_state=jax.device_get(state.opt_state),
-            step=state.step
-        )
+        best_checkpoint_file = f"{checkpoint_dir}/best_model.ckpt"
+        with open(best_checkpoint_file, 'wb') as f:
+            pickle.dump(checkpoint_data, f)
         print(f"[*] Best model saved: {best_checkpoint_file}")
         
     except Exception as e:
@@ -75,12 +80,17 @@ def save_checkpoint(state, args, epoch, val_loss, val_acc, test_loss, test_acc, 
 def load_checkpoint(checkpoint_path, state):
     """Load model checkpoint"""
     try:
-        import numpy as np_load
-        checkpoint = np_load.load(checkpoint_path, allow_pickle=True)
-        # Note: This is a simplified loading. In practice, you might need to handle
-        # parameter structure changes between different model versions
-        print(f"[*] Checkpoint loaded: {checkpoint_path}")
-        return checkpoint
+        import pickle
+        if os.path.exists(checkpoint_path):
+            with open(checkpoint_path, 'rb') as f:
+                checkpoint_data = pickle.load(f)
+            print(f"[*] Checkpoint loaded: {checkpoint_path}")
+            print(f"[*] Epoch: {checkpoint_data.get('epoch', 'N/A')}")
+            print(f"[*] Val Loss: {checkpoint_data.get('val_loss', 'N/A')}")
+            print(f"[*] Val Acc: {checkpoint_data.get('val_acc', 'N/A')}")
+            return checkpoint_data
+        else:
+            raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
     except Exception as e:
         print(f"[!] Failed to load checkpoint: {e}")
         return None
@@ -261,7 +271,7 @@ def train(args):
     
     if args.checkpoint:
         checkpoint_dir = f"checkpoints/{args.dataset}"
-        best_checkpoint_path = f"{checkpoint_dir}/best_model.npz"
+        best_checkpoint_path = f"{checkpoint_dir}/best_model.ckpt"
         checkpoint_info_path = f"{checkpoint_dir}/checkpoint_info.json"
         
         if os.path.exists(best_checkpoint_path) and os.path.exists(checkpoint_info_path):

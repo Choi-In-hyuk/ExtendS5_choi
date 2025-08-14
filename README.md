@@ -69,8 +69,8 @@ python -m s5.train_ex --dataset lra-cifar-classification --epochs 20 --bsz 32
 훈련 중 val loss가 개선될 때마다 자동으로 checkpoint가 저장됩니다.
 
 #### Checkpoint 저장 위치
-- **모델 가중치**: `checkpoints/{dataset}/model_epoch_{epoch}.npz`
-- **최고 성능 모델**: `checkpoints/{dataset}/best_model.npz`
+- **모델 가중치**: `checkpoints/{dataset}/model_epoch_{epoch}.ckpt`
+- **최고 성능 모델**: `checkpoints/{dataset}/best_model.ckpt`
 - **체크포인트 정보**: `checkpoints/{dataset}/checkpoint_info.json`
 
 #### Checkpoint 활성화
