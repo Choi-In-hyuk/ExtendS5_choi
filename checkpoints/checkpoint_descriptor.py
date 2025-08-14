@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 체크포인트 파일 구조 확인 스크립트
+사용 예시: python checkpoint_descriptor.py --path checkpoints/imdb-classification/best_model.ckpt
 """
 
 import os
