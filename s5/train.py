@@ -45,9 +45,10 @@ def save_checkpoint(state, args, epoch, val_loss, val_acc, test_loss, test_acc, 
     # Save model state using JAX's save function
     try:
         import jax
+        import numpy as np_save
         checkpoint_file = f"{checkpoint_dir}/model_epoch_{epoch:03d}.npz"
         jax.device_get(state.params)  # Move to CPU before saving
-        np.savez_compressed(
+        np_save.savez_compressed(
             checkpoint_file,
             params=jax.device_get(state.params),
             opt_state=jax.device_get(state.opt_state),
@@ -59,7 +60,7 @@ def save_checkpoint(state, args, epoch, val_loss, val_acc, test_loss, test_acc, 
         
         # Save best model separately
         best_checkpoint_file = f"{checkpoint_dir}/best_model.npz"
-        np.savez_compressed(
+        np_save.savez_compressed(
             best_checkpoint_file,
             params=jax.device_get(state.params),
             opt_state=jax.device_get(state.opt_state),
@@ -74,7 +75,8 @@ def save_checkpoint(state, args, epoch, val_loss, val_acc, test_loss, test_acc, 
 def load_checkpoint(checkpoint_path, state):
     """Load model checkpoint"""
     try:
-        checkpoint = np.load(checkpoint_path, allow_pickle=True)
+        import numpy as np_load
+        checkpoint = np_load.load(checkpoint_path, allow_pickle=True)
         # Note: This is a simplified loading. In practice, you might need to handle
         # parameter structure changes between different model versions
         print(f"[*] Checkpoint loaded: {checkpoint_path}")
@@ -376,7 +378,10 @@ def train(args):
                 best_test_loss, best_test_acc = best_loss, best_acc
 
             # Save checkpoint when validation improves
-            save_checkpoint(state, args, epoch, val_loss, val_acc, test_loss, test_acc, best_epoch)
+            if valloader is not None:
+                save_checkpoint(state, args, epoch, val_loss, val_acc, test_loss, test_acc, best_epoch)
+            else:
+                save_checkpoint(state, args, epoch, val_loss, val_acc, val_loss, val_acc, best_epoch)
 
             # Do some validation on improvement.
             if speech:
