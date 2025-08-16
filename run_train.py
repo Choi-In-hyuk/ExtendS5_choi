@@ -102,6 +102,10 @@ def main():
 	  	       "noBCdecay:      no weight decay on B (ssm lr), no weight decay on C (ssm lr) \\")
 	parser.add_argument("--jax_seed", type=int, default=1919,
 						help="seed randomness")
+	parser.add_argument("--freeze_layers", type=str, default="",
+						help="comma-separated layer numbers to freeze, e.g. 1,2,3")
+	parser.add_argument("--freeze_params", type=str, default="", 
+						help="comma-separated param types to freeze, e.g. A,B,C,D")
 
 	args = parser.parse_args()
 

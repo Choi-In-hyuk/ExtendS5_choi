@@ -100,32 +100,15 @@ def create_train_state(model_cls,
                        activation="gelu",
                        dropout=0.2,
                        prenorm=False,
-                       bn_momentum=0.9
+                       bn_momentum=0.9,
+                       freeze_layers="",
+                       freeze_params=""
                        ):
     """
     Initializes the training state using optax
 
-    :param model_cls:
-    :param rng:
-    :param padded:
-    :param retrieval:
-    :param in_dim:
-    :param bsz:
-    :param seq_len:
-    :param weight_decay:
-    :param batchnorm:
-    :param opt_config:
-    :param ssm_lr:
-    :param lr:
-    :param dt_global:
-    :param ssm_init_fn:
-    :param d_model:
-    :param n_layers:
-    :param activation:
-    :param dropout:
-    :param prenorm:
-    :param bn_momentum:
-    :return:
+    :param freeze_layers: comma-separated layer numbers to freeze (e.g. "1,2,3")
+    :param freeze_params: comma-separated param types to freeze (e.g. "A,B,C,D")
     """
 
     if padded:
@@ -165,26 +148,85 @@ def create_train_state(model_cls,
         params = variables["params"] if isinstance(variables["params"], dict) else variables["params"].unfreeze()
         # Note: `unfreeze()` is for using Optax.
 
+    # Parse freeze options
+    freeze_layer_nums = []
+    freeze_param_types = []
+    
+    if freeze_layers.strip():
+        freeze_layer_nums = [int(x.strip()) for x in freeze_layers.split(',')]
+    
+    if freeze_params.strip():
+        freeze_param_types = [x.strip().upper() for x in freeze_params.split(',')]
+    
+    print(f"[*] Freeze Configuration:")
+    print(f"    Layers: {freeze_layer_nums}")
+    print(f"    Params: {freeze_param_types}")
+
+    # Create enhanced parameter classification function
+    def create_enhanced_ssm_fn(freeze_layer_nums, freeze_param_types):
+        def enhanced_ssm_fn(path, param):
+            # Extract layer number and parameter name from path
+            path_str = str(path)
+            
+            # Check if this is a layer parameter (layers_X)
+            layer_match = None
+            param_name = path[-1] if len(path) > 0 else ""
+            
+            # Find layer number in path
+            for part in path:
+                if isinstance(part, str) and part.startswith('layers_'):
+                    try:
+                        layer_num = int(part.split('_')[1])
+                        layer_match = layer_num
+                        break
+                    except (IndexError, ValueError):
+                        continue
+            
+            # If this parameter should be frozen
+            if layer_match is not None and layer_match in freeze_layer_nums:
+                # Map parameter names to types
+                param_type_mapping = {
+                    'Lambda_re': 'A',
+                    'Lambda_im': 'A', 
+                    'B': 'B',
+                    'C1': 'C',
+                    'C2': 'C',
+                    'D': 'D'
+                }
+                
+                param_type = param_type_mapping.get(param_name)
+                if param_type and param_type in freeze_param_types:
+                    return "freeze"
+            
+            # Apply original classification logic for non-frozen parameters
+            if dt_global:
+                if param_name in ["B", "Lambda_re", "Lambda_im", "norm"]:
+                    return "ssm"
+                elif param_name in []:
+                    return "none"
+                else:
+                    return "regular"
+            else:
+                if param_name in ["B", "Lambda_re", "Lambda_im", "log_step", "norm"]:
+                    return "ssm"
+                elif param_name in []:
+                    return "none"
+                else:
+                    return "regular"
+        
+        return map_nested_fn(enhanced_ssm_fn)
+
     if opt_config in ["standard"]:
         """This option applies weight decay to C, but B is kept with the
             SSM parameters with no weight decay.
         """
-        print("configuring standard optimization setup")
-        if dt_global:
-            ssm_fn = map_nested_fn(
-                lambda k, _: "ssm"
-                if k in ["B", "Lambda_re", "Lambda_im", "norm"]
-                else ("none" if k in [] else "regular")
-            )
-
-        else:
-            ssm_fn = map_nested_fn(
-                lambda k, _: "ssm"
-                if k in ["B", "Lambda_re", "Lambda_im", "log_step", "norm"]
-                else ("none" if k in [] else "regular")
-            )
+        print("configuring standard optimization setup with freeze support")
+        
+        ssm_fn = create_enhanced_ssm_fn(freeze_layer_nums, freeze_param_types)
+        
         tx = optax.multi_transform(
             {
+                "freeze": optax.inject_hyperparams(optax.sgd)(learning_rate=0.0),  # Frozen parameters
                 "none": optax.inject_hyperparams(optax.sgd)(learning_rate=0.0),
                 "ssm": optax.inject_hyperparams(optax.adam)(learning_rate=ssm_lr),
                 "regular": optax.inject_hyperparams(optax.adamw)(learning_rate=lr,
@@ -196,22 +238,13 @@ def create_train_state(model_cls,
         """This option applies weight decay to both C and B. Note we still apply the
            ssm learning rate to B.
         """
-        print("configuring optimization with B in AdamW setup")
-        if dt_global:
-            ssm_fn = map_nested_fn(
-                lambda k, _: "ssm"
-                if k in ["Lambda_re", "Lambda_im", "norm"]
-                else ("none" if k in ["B"] else "regular")
-            )
-
-        else:
-            ssm_fn = map_nested_fn(
-                lambda k, _: "ssm"
-                if k in ["Lambda_re", "Lambda_im", "log_step", "norm"]
-                else ("none" if k in ["B"] else "regular")
-            )
+        print("configuring optimization with B in AdamW setup with freeze support")
+        
+        ssm_fn = create_enhanced_ssm_fn(freeze_layer_nums, freeze_param_types)
+        
         tx = optax.multi_transform(
             {
+                "freeze": optax.inject_hyperparams(optax.sgd)(learning_rate=0.0),  # Frozen parameters
                 "none": optax.inject_hyperparams(optax.adamw)(learning_rate=ssm_lr,
                                                               weight_decay=weight_decay),
                 "ssm": optax.inject_hyperparams(optax.adam)(learning_rate=ssm_lr),
@@ -225,21 +258,13 @@ def create_train_state(model_cls,
         """This option applies weight decay to both C and B. Note here we apply 
            faster global learning rate to B also.
         """
-        print("configuring optimization with B in AdamW setup with lr")
-        if dt_global:
-            ssm_fn = map_nested_fn(
-                lambda k, _: "ssm"
-                if k in ["Lambda_re", "Lambda_im", "norm"]
-                else ("none" if k in [] else "regular")
-            )
-        else:
-            ssm_fn = map_nested_fn(
-                lambda k, _: "ssm"
-                if k in ["Lambda_re", "Lambda_im", "log_step", "norm"]
-                else ("none" if k in [] else "regular")
-            )
+        print("configuring optimization with B in AdamW setup with lr with freeze support")
+        
+        ssm_fn = create_enhanced_ssm_fn(freeze_layer_nums, freeze_param_types)
+        
         tx = optax.multi_transform(
             {
+                "freeze": optax.inject_hyperparams(optax.sgd)(learning_rate=0.0),  # Frozen parameters
                 "none": optax.inject_hyperparams(optax.adamw)(learning_rate=0.0),
                 "ssm": optax.inject_hyperparams(optax.adam)(learning_rate=ssm_lr),
                 "regular": optax.inject_hyperparams(optax.adamw)(learning_rate=lr,
@@ -252,23 +277,13 @@ def create_train_state(model_cls,
         """This option does not apply weight decay to B or C. C is included 
             with the SSM parameters and uses ssm learning rate.
          """
-        print("configuring optimization with C not in AdamW setup")
-        if dt_global:
-            ssm_fn = map_nested_fn(
-                lambda k, _: "ssm"
-                if k in ["B", "C", "C1", "C2", "D",
-                         "Lambda_re", "Lambda_im", "norm"]
-                else ("none" if k in [] else "regular")
-            )
-        else:
-            ssm_fn = map_nested_fn(
-                lambda k, _: "ssm"
-                if k in ["B", "C", "C1", "C2", "D",
-                         "Lambda_re", "Lambda_im", "log_step", "norm"]
-                else ("none" if k in [] else "regular")
-            )
+        print("configuring optimization with C not in AdamW setup with freeze support")
+        
+        ssm_fn = create_enhanced_ssm_fn(freeze_layer_nums, freeze_param_types)
+        
         tx = optax.multi_transform(
             {
+                "freeze": optax.inject_hyperparams(optax.sgd)(learning_rate=0.0),  # Frozen parameters
                 "none": optax.inject_hyperparams(optax.sgd)(learning_rate=0.0),
                 "ssm": optax.inject_hyperparams(optax.adam)(learning_rate=ssm_lr),
                 "regular": optax.inject_hyperparams(optax.adamw)(learning_rate=lr,
@@ -279,7 +294,6 @@ def create_train_state(model_cls,
 
     fn_is_complex = lambda x: x.dtype in [np.complex64, np.complex128]
     param_sizes = map_nested_fn(lambda k, param: param.size * (2 if fn_is_complex(param) else 1))(params)
-    # print(f"[*] Trainable Parameters: {sum(jax.tree_leaves(param_sizes))}")
     print(f"[*] Trainable Parameters: {sum(jax.tree_util.tree_leaves(param_sizes))}")
 
     if batchnorm:

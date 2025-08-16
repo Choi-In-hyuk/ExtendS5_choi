@@ -1,14 +1,14 @@
 {
-  "epoch": 30,
-  "val_loss": 0.6655790209770203,
-  "val_acc": 0.8894799947738647,
-  "test_loss": 0.6655790209770203,
-  "test_acc": 0.8894799947738647,
-  "best_epoch": 30,
+  "epoch": 1,
+  "val_loss": 0.32196804881095886,
+  "val_acc": 0.8617199659347534,
+  "test_loss": 0.32196804881095886,
+  "test_acc": 0.8617199659347534,
+  "best_epoch": 1,
   "dataset": "imdb-classification",
-  "timestamp": "2025-08-14T13:31:08.205557",
+  "timestamp": "2025-08-16T20:40:04.552504",
   "args": {
-    "USE_WANDB": true,
+    "USE_WANDB": false,
     "wandb_project": "new_s5",
     "wandb_entity": null,
     "dir_name": "./cache_dir",
@@ -38,7 +38,7 @@
     "ssm_lr_base": 0.001,
     "lr_factor": 4.0,
     "dt_global": true,
-    "lr_min": 0,
+    "lr_min": 0.0,
     "cosine_anneal": true,
     "warmup_end": 0,
     "lr_patience": 1000000,
@@ -46,6 +46,8 @@
     "p_dropout": 0.1,
     "weight_decay": 0.07,
     "opt_config": "standard",
-    "jax_seed": 8825365
+    "jax_seed": 1919,
+    "freeze_layers": "1,2",
+    "freeze_params": "A,C"
   }
 }
