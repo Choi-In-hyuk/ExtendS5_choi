@@ -25,12 +25,17 @@ python choi_run_train.py --dataset=imdb-classification --checkpoint=True --USE_W
 # S5 체크포인트 자동 로드 + freeze없이 실행
 python -m s5.choi_train_ex --ssm_type extend --dataset imdb-classification --R 10 --d_model 256 --n_layers 6 --ssm_size_base 96 --epochs 50
 
-# S5 체크포인트 자동 로드 + freeze 적용
-python -m s5.choi_train_ex --ssm_type extend --dataset imdb-classification --R 10 --freeze_layers 0,1,2 --freeze_params A,B,C --d_model 256 --n_layers 6 --ssm_size_base 96 --epochs 50
+# 모든 레이어의 ABCD만 freeze하고 싶다면
+python -m s5.choi_train_ex --ssm_type extend --dataset lra-cifar-classification --R 10 \
+  --freeze_params A,B,C,D \
+  --d_model 256 --n_layers 6
 
-# 다른 체크포인트 경로 사용 (오타 수정)
-python -m s5.choi_train_ex --ssm_type extend --dataset imdb-classification --R 10 --load_s5_checkpoint /home/choi/ExtendS5/checkpoints/imdb-classification/model_epoch_001.ckpt --d_model 256 --n_layers 6 --ssm_size_base 96 --epochs 50
+# 특정 레이어(0,1,2)의 ABCD만 freeze하고 싶다면  
+python -m s5.choi_train_ex --ssm_type extend --dataset lra-cifar-classification --R 10 \
+  --freeze_layers 0,1,2 --freeze_params A,B,C,D \
+  --d_model 256 --n_layers 6
 ```
+
 
 
 
