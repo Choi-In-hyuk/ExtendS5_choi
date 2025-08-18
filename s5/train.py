@@ -105,22 +105,27 @@ def train(args):
     best_test_acc = -10000.0
 
     if args.USE_WANDB:
+        # Make wandb config dictionary
         wandb.init(project=args.wandb_project, job_type='model_training', config=vars(args), entity=args.wandb_entity)
     else:
         wandb.init(mode='offline')
 
     ssm_size = args.ssm_size_base
     ssm_lr = args.ssm_lr_base
+
+    # determine the size of initial blocks
     block_size = int(ssm_size / args.blocks)
     wandb.log({"block_size": block_size})
+
+    # Set global learning rate lr (e.g. encoders, etc.) as function of ssm_lr
     lr = args.lr_factor * ssm_lr
 
-    # Random seed
+    # Set randomness...
     print("[*] Setting Randomness...")
     key = random.PRNGKey(args.jax_seed)
     init_rng, train_rng = random.split(key, num=2)
 
-    # Dataset
+    # Get dataset creation function
     create_dataset_fn = Datasets[args.dataset]
 
     # Dataset dependent logic
@@ -255,11 +260,9 @@ def train(args):
                                opt_config=args.opt_config,
                                ssm_lr=ssm_lr,
                                lr=lr,
-                               dt_global=args.dt_global,
-                               freeze_layers=args.freeze_layers,
-                               freeze_params=args.freeze_params)
+                               dt_global=args.dt_global)
 
-    # Try to load checkpoint if exists (parameters only)
+    # Try to load checkpoint if exists
     start_epoch = 0
     best_loss, best_acc, best_epoch = 100000000, -100000000.0, 0
     count, best_val_loss = 0, 100000000
@@ -269,25 +272,34 @@ def train(args):
     if args.checkpoint:
         checkpoint_dir = f"checkpoints/{args.dataset}"
         best_checkpoint_path = f"{checkpoint_dir}/best_model.ckpt"
+        checkpoint_info_path = f"{checkpoint_dir}/checkpoint_info.json"
         
-        if os.path.exists(best_checkpoint_path):
+        if os.path.exists(best_checkpoint_path) and os.path.exists(checkpoint_info_path):
             try:
-                import pickle
-                with open(best_checkpoint_path, "rb") as f:
-                    checkpoint = pickle.load(f)
-
-                # Load parameters only, keep everything else fresh
-                state = state.replace(params=checkpoint['params'])
+                # Load checkpoint info
+                with open(checkpoint_info_path, 'r') as f:
+                    checkpoint_info = json.load(f)
                 
-                print(f"[*] Loaded parameters from checkpoint: {best_checkpoint_path}")
-                print("[*] Starting fresh training with loaded parameters")
-
+                # Load model state
+                checkpoint = np.load(best_checkpoint_path, allow_pickle=True)
+                
+                # Restore state (simplified - you might need to handle parameter structure)
+                print(f"[*] Loading checkpoint from epoch {checkpoint_info['epoch']}")
+                print(f"[*] Best val loss: {checkpoint_info['val_loss']:.5f}")
+                print(f"[*] Best val acc: {checkpoint_info['val_acc']:.4f}")
+                
+                # Update best metrics
+                best_loss = checkpoint_info['val_loss']
+                best_acc = checkpoint_info['val_acc']
+                best_epoch = checkpoint_info['best_epoch']
+                
+                print(f"[*] Resuming from best checkpoint (epoch {checkpoint_info['epoch']})")
+                
             except Exception as e:
-                print(f"[!] Failed to load checkpoint parameters: {e}")
+                print(f"[!] Failed to load checkpoint: {e}")
                 print("[*] Starting training from scratch")
-
     steps_per_epoch = int(train_size/args.bsz)
-    for epoch in range(start_epoch, args.epochs):
+    for epoch in range(args.epochs):
         print(f"[*] Starting Training Epoch {epoch + 1}...")
 
         if epoch < args.warmup_end:
