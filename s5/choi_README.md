@@ -27,8 +27,9 @@ python -m s5.choi_train_ex --ssm_type extend --dataset imdb-classification --R 1
 
 # 모든 레이어의 ABCD freeze
 python -m s5.choi_train_ex --ssm_type extend --dataset imdb-classification --R 10 \
-  --freeze_params A,B,C,D \
-  --d_model 256 --n_layers 6 --ssm_size_base 96 --epochs 50
+  --freeze_layers=0,1,2,3,4,5 --freeze_params A,B,C,D \  
+  --d_model 256 --n_layers 6 --ssm_size_base 96 --epochs 50 
+
 
 
 
