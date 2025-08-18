@@ -26,16 +26,12 @@ python choi_run_train.py --dataset=imdb-classification --checkpoint=True --USE_W
 python -m s5.choi_train_ex --ssm_type extend --dataset imdb-classification --R 10 --d_model 256 --n_layers 6 --ssm_size_base 96 --epochs 50
 
 # 모든 레이어의 ABCD freeze
-python -m s5.choi_train_ex --ssm_type extend --dataset lra-cifar-classification --R 10 \
+python -m s5.choi_train_ex --ssm_type extend --dataset imdb-classification --R 10 \
   --freeze_params A,B,C,D \
   --d_model 256 --n_layers 6 --ssm_size_base 96 --epochs 50
 
-# 또는 특정 체크포인트 경로 사용
-python -m s5.choi_train_ex --ssm_type extend --dataset lra-cifar-classification --R 10 \
-  --load_s5_checkpoint /home/choi/ExtendS5/checkpoints/imdb-classification/model_epoch_001.ckpt \
-  --freeze_params A,B,C,D \
-  --d_model 256 --n_layers 6 --ssm_size_base 96 --epochs 50
-```
+
+
 
 
 
