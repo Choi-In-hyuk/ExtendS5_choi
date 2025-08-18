@@ -16,7 +16,7 @@ import jax.numpy as np
 from jax.scipy.linalg import block_diag
 import wandb
 
-from .train_helpers import (
+from .choi_train_helpers import (
     create_train_state,
     train_epoch,
     validate,

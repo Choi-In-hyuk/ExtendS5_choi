@@ -7,7 +7,7 @@ import os
 import json
 from datetime import datetime
 
-from .train_helpers import create_train_state, reduce_lr_on_plateau,\
+from .choi_train_helpers import create_train_state, reduce_lr_on_plateau,\
     linear_warmup, cosine_annealing, constant_lr, train_epoch, validate
 from .dataloading import Datasets
 from .seq_model import BatchClassificationModel, RetrievalModel, BatchSelectiveCopyingModel
