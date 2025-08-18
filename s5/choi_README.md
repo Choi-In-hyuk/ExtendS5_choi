@@ -28,13 +28,16 @@ python -m s5.choi_train_ex --ssm_type extend --dataset imdb-classification --R 1
 # 모든 레이어의 ABCD만 freeze하고 싶다면
 python -m s5.choi_train_ex --ssm_type extend --dataset lra-cifar-classification --R 10 \
   --freeze_params A,B,C,D \
-  --d_model 256 --n_layers 6
+  --d_model 256 --n_layers 6 \
+  --ssm_size_base 96 --epochs 50
 
 # 특정 레이어(0,1,2)의 ABCD만 freeze하고 싶다면  
 python -m s5.choi_train_ex --ssm_type extend --dataset lra-cifar-classification --R 10 \
   --freeze_layers 0,1,2 --freeze_params A,B,C,D \
-  --d_model 256 --n_layers 6
+  --d_model 256 --n_layers 6 \
+  --ssm_size_base 96 --epochs 50
 ```
+
 
 
 
