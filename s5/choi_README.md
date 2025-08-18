@@ -1,9 +1,9 @@
 # 수정한 내용
-choi_train.py와 choi_helpers.py 수정해서 원하는 레이어의 A,B,C,D freeze하고 실행하도록 해봤음
-choi_run_train.py로 실행하도록
-chio_train_ex.py로 니가 학습시켜놓은 체크포인트의 ABCD불러오고 나머지 파라미터들은 랜덤 초기화해서 학습하도록 해놨음
-학습은 되는데 니가 원하는대로 잘 되는지는 몰라서 말해주면 또 어떻게 수정해보도록함
-최대한 니 코드에서 수정한거라 보기 편할거임
+choi_train.py와 choi_helpers.py 수정해서 원하는 레이어의 A,B,C,D freeze하고 실행하도록 해봤음  
+choi_run_train.py로 실행하도록  
+chio_train_ex.py로 니가 학습시켜놓은 체크포인트의 ABCD불러오고 나머지 파라미터들은 랜덤 초기화해서 학습하도록 해놨음  
+학습은 되는데 니가 원하는대로 잘 되는지는 몰라서 말해주면 또 어떻게 수정해보도록함  
+최대한 니 코드에서 수정한거라 보기 편할거임  
 
 
 # S5 finetuning 코드 실행 방법 
@@ -28,6 +28,7 @@ python -m s5.choi_train_ex --ssm_type extend --dataset lra-cifar-classification 
 # 다른 체크포인트 경로 사용
 python -m s5.chio_train_ex --ssm_type extend --dataset lra-cifar-classification --R 10 --load_s5_checkpoint /home/choi/ExtendS5/checkpoints/imdb-classification/model_epoch_001.ckpt --d_model 256 --n_layers 6
 ```
+
 
 
 
