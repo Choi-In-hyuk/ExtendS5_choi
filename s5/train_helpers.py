@@ -463,9 +463,6 @@ def eval_step(batch_inputs,
 
     return losses, accs, logits
 
-
-# �\� � � � 
 def linear_increase(step, base_lr, end_step, lr_min=None):
-    """Y�`D 0� ܑt base_lrL�  <\ � """
+    """Y"""
     return base_lr * (step / end_step)
- 

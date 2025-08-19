@@ -330,23 +330,45 @@ def main():
             lr_params,
         )
 
-        # 검증/테스트
-        val_loss, val_acc = validate(state, model_cls, valloader, seq_len, in_dim, False)
-        test_loss, test_acc = validate(state, model_cls, testloader, seq_len, in_dim, False)
-
-        # 로그 데이터 구성
-        log_data = {
-            "epoch": epoch,
-            "train_loss": float(train_loss),
-            "val_loss": float(val_loss),
-            "val_acc": float(val_acc),
-            "test_loss": float(test_loss),
-            "test_acc": float(test_acc),
-            "ssm_type": args.ssm_type,
-            "lambda_extension": True,
-            "R": args.R,
-            "loaded_s5_checkpoint": bool(args.load_s5_checkpoint),
-        }
+        # 검증/테스트 - valloader가 None인 경우 처리
+        if valloader is not None:
+            val_loss, val_acc = validate(state, model_cls, valloader, seq_len, in_dim, False)
+            test_loss, test_acc = validate(state, model_cls, testloader, seq_len, in_dim, False)
+            
+            # 로그 데이터 구성
+            log_data = {
+                "epoch": epoch,
+                "train_loss": float(train_loss),
+                "val_loss": float(val_loss),
+                "val_acc": float(val_acc),
+                "test_loss": float(test_loss),
+                "test_acc": float(test_acc),
+                "ssm_type": args.ssm_type,
+                "lambda_extension": True,
+                "R": args.R,
+                "loaded_s5_checkpoint": bool(args.load_s5_checkpoint),
+            }
+            
+            print(f"val loss: {float(val_loss):.4f}, val acc: {float(val_acc):.4f}")
+            print(f"test loss: {float(test_loss):.4f}, test acc: {float(test_acc):.4f}")
+        else:
+            # IMDB처럼 validation set이 없는 경우
+            val_loss, val_acc = validate(state, model_cls, testloader, seq_len, in_dim, False)
+            test_loss, test_acc = val_loss, val_acc
+            
+            # 로그 데이터 구성
+            log_data = {
+                "epoch": epoch,
+                "train_loss": float(train_loss),
+                "val_loss": float(val_loss),
+                "val_acc": float(val_acc),
+                "ssm_type": args.ssm_type,
+                "lambda_extension": True,
+                "R": args.R,
+                "loaded_s5_checkpoint": bool(args.load_s5_checkpoint),
+            }
+            
+            print(f"test loss: {float(val_loss):.4f}, test acc: {float(val_acc):.4f}")
 
         # Freeze 정보 추가
         if args.freeze_layers or args.freeze_params:
@@ -363,8 +385,6 @@ def main():
             print(f"new best val acc: {best_val_acc:.4f}")
 
         print(f"train loss: {float(train_loss):.4f}")
-        print(f"val loss: {float(val_loss):.4f}, val acc: {float(val_acc):.4f}")
-        print(f"test loss: {float(test_loss):.4f}, test acc: {float(test_acc):.4f}")
 
     print("\nTraining completed!")
     print(f"Best validation accuracy: {best_val_acc:.4f} (epoch {best_epoch+1})")
@@ -373,11 +393,18 @@ def main():
         print(f"S5 checkpoint loaded from: {args.load_s5_checkpoint}")
     
     # Final summary to WandB
-    wandb.log({
-        "best_val_acc": best_val_acc,
-        "best_epoch": best_epoch,
-        "final_test_acc": float(test_acc),
-    })
+    if valloader is not None:
+        wandb.log({
+            "best_val_acc": best_val_acc,
+            "best_epoch": best_epoch,
+            "final_test_acc": float(test_acc),
+        })
+    else:
+        wandb.log({
+            "best_val_acc": best_val_acc,
+            "best_epoch": best_epoch,
+            "final_test_acc": float(val_acc),
+        })
     
     wandb.finish()
 

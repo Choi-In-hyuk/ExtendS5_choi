@@ -1,12 +1,12 @@
 {
   "epoch": 1,
-  "val_loss": 0.32196804881095886,
-  "val_acc": 0.8617199659347534,
-  "test_loss": 0.32196804881095886,
-  "test_acc": 0.8617199659347534,
+  "val_loss": 0.33779144287109375,
+  "val_acc": 0.8516799807548523,
+  "test_loss": 0.33779144287109375,
+  "test_acc": 0.8516799807548523,
   "best_epoch": 1,
   "dataset": "imdb-classification",
-  "timestamp": "2025-08-16T20:40:04.552504",
+  "timestamp": "2025-08-18T13:03:16.517848",
   "args": {
     "USE_WANDB": false,
     "wandb_project": "new_s5",
@@ -47,7 +47,7 @@
     "weight_decay": 0.07,
     "opt_config": "standard",
     "jax_seed": 1919,
-    "freeze_layers": "1,2",
-    "freeze_params": "A,C"
+    "freeze_layers": "",
+    "freeze_params": ""
   }
 }
