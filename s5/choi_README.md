@@ -23,12 +23,13 @@ python choi_run_train.py --dataset=imdb-classification --checkpoint=True --USE_W
 
 ```bash
 # S5 체크포인트 자동 로드 + freeze없이 실행
-python -m s5.choi_train_ex --ssm_type extend --dataset imdb-classification --R 10 --d_model 256 --n_layers 6 --ssm_size_base 96 --epochs 50
+python -m s5.choi_train_ex --ssm_type extend --dataset imdb-classification --R 10 --d_model 256 --n_layers 6 --ssm_size_base 96 --epochs 50 --bidirectional
 
 # 모든 레이어의 ABCD freeze
 python -m s5.choi_train_ex --ssm_type extend --dataset imdb-classification --R 10 \
   --freeze_layers 0,1,2,3,4,5 --freeze_params Lambda_re,Lambda_im,B,C1,C2,D \
-  --d_model 256 --n_layers 6 --ssm_size_base 96 --epochs 50
+  --d_model 256 --n_layers 6 --ssm_size_base 96 --epochs 50 --bidirectional
+
 
 
 
