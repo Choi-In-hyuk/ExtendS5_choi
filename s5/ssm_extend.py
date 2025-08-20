@@ -188,13 +188,13 @@ class ExtendedS5SSM(nn.Module):
             self.Lambda = self.Lambda_re + 1j * self.Lambda_im
 
         # Initialize E matrix (P, R)
-        E_init = normal(stddev=0.1)
+        E_init = normal(stddev=0.01)
         self.E_real = self.param("E_real", E_init, (self.P, self.R))
         self.E_imag = self.param("E_imag", E_init, (self.P, self.R))
         self.E = self.E_real + 1j * self.E_imag
         
         # Initialize F matrix (R, P)  
-        F_init = normal(stddev=0.1)
+        F_init = normal(stddev=0.01)
         self.F_real = self.param("F_real", F_init, (self.R, self.P))
         self.F_imag = self.param("F_imag", F_init, (self.R, self.P))
         self.F = self.F_real + 1j * self.F_imag
@@ -268,7 +268,7 @@ class ExtendedS5SSM(nn.Module):
             # This will be dynamically adjusted in __call__
             max_seq_len = 1024  # You can adjust this based on your dataset
             self.Delta_t_diag = self.param("Delta_t_diag", 
-                                          normal(stddev=0.1), 
+                                          normal(stddev=0.01), 
                                           (max_seq_len, self.R))
 
         # Discretize

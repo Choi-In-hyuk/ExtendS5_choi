@@ -64,7 +64,7 @@ def create_parser():
     parser.add_argument("--n_layers", type=int, default=4)
     parser.add_argument("--p_dropout", type=float, default=0.1)
     parser.add_argument("--ssm_size_base", type=int, default=64)
-    parser.add_argument("--blocks", type=int, default=1)
+    parser.add_argument("--blocks", type=int, default=8)
 
     parser.add_argument("--C_init", type=str, default="lecun_normal", choices=["lecun_normal", "trunc_standard_normal", "complex_normal"]) 
     parser.add_argument("--discretization", type=str, default="bilinear", choices=["zoh", "bilinear"]) 
@@ -159,7 +159,7 @@ def load_s5_abcd_params(checkpoint_path, target_params, n_layers):
                             else:
                                 print(f"    Shape mismatch for {layer_key}.seq.{param_name}: S5={s5_shape}, Target={target_shape}")
         
-        print(f"[*] Successfully loaded {loaded_count} ABCD parameters from S5 checkpoint")
+        print(f"[*] Successfully loaded {loaded_count} ABCD parameters from S5 echeckpoint")
         return target_params
         
     except Exception as e:
